@@ -11,7 +11,7 @@ Family plan: Janus `docs/plans/janus-mission.md` (§6 settles the identity
 model). Layer 1 · connectivity. Depends on `rusty_esp_core` only; `rusty_esp_iroh`
 and `rusty_esp_signal` depend on this crate.
 
-Written 2026-09-01. Status: **scaffold.**
+Written 2026-09-01. Status: **M0 shipped on the host** (see §5 and `docs/LEDGER.md`); `-esp` backends are M1 and need a board.
 
 ---
 
@@ -111,15 +111,17 @@ through `mid-issuer → kms-client`** for the two-method `DeviceSigner` trait.
 | Owner-side verification of *device* assertions | `mid-verify` / `kms-verifier` on the host, unchanged | the oracle for this crate's tests |
 
 Compact `Adoption` instead of a full mID JWT on the device is deliberate: a
-sign-in JWT embeds the whole roster chain (cap 64 devices) and its size is
-**not stated anywhere** in `mid`; milestone M1 measures it and the number
-goes in the ledger before any radio link is asked to carry one.
+sign-in JWT embeds the whole roster chain (cap 64 devices) and its size was
+not stated anywhere in `mid`. **Measured 2026-09-01 (`docs/LEDGER.md`):
+1 511 bytes at one device, 4 562 at eight, 23 472 at the 64-device cap.** An
+owner token never crosses ESP-NOW (250-byte MTU) or LoRa; an adoption (≈ 300
+bytes) does.
 
 ## 5. Milestones and kill tests
 
 | # | Deliverable | Kill test |
 |---|---|---|
-| **M0** | core: key, DID, signer, assertion, adoption, nonce window, `cap::satisfies`, host tests | a device-issued assertion **verifies with `kms-verifier` / `mid-verify` on the host** (the oracle); `cap::satisfies` matches `mata-cap` on a 200-case table; riscv32 green; JWT size for rosters of 1, 8, 64 recorded |
+| **M0** ✅ 2026-09-01 | core: key, DID, signer, assertion, adoption, nonce window, `cap::satisfies`, JWS, genesis roster, self-issued token, manifest signing; 28 unit + 7 oracle tests | **passed:** a device-signed assertion verifies in `kms-verifier` and a self-issued token in `mid-verify`; the signer and the genesis roster are byte-identical to `kms-client` / `mid-issuer`; `cap` agrees with `mata-cap` on 144/144 cases; riscv32 green with and without `alloc`; token sizes recorded in `docs/LEDGER.md` — **1 511 / 4 562 / 23 472 bytes** for 1 / 8 / 64 devices |
 | **M1** (J3) | Track A on XIAO S3 Sense: key in encrypted NVS, DID on serial, signed manifest served over the sidecar RPC | the home computer's verifier accepts the assertion; the DID is stable across reflash; an NVS dump of a plaintext partition is refused by the backend |
 | **M2** (J3) | adoption over QR ticket with the home computer app; TOFU pin; rehome; revoke by roster rotation | the J3 family kill test; a second owner's adoption is refused; a factory reset (strapping-pin hold) clears the pin and nothing else |
 | **M3** | `DsSigner` on S3/C6/P4 — key never readable; `Certified` tier | the signature verifies against the DID; the flash image contains no private key; secure boot + flash encryption + NVS encryption all reported on |

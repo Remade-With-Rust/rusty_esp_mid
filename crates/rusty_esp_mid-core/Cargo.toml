@@ -1,6 +1,6 @@
 [package]
 name = "rusty_esp_mid-core"
-description = "The pure no_std + alloc core of rusty_esp_mid: types, traits and algorithms with no drivers, no allocator and no product types. forbid(unsafe)."
+description = "MATA mID on the chip, the pure core: a P-256 device did:mata, the byte-identical DeviceSigner, kms nonce assertions, JWS ES256, the self-issued mID token, capability matching, the owner Adoption grant, a replay window and manifest signing. no_std, forbid(unsafe), no drivers."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,18 +10,56 @@ authors.workspace = true
 rust-version.workspace = true
 readme = "README.md"
 documentation = "https://docs.rs/rusty_esp_mid-core"
-keywords = ["esp32", "embedded", "no-std", "mata", "remade-with-rust"]
-categories = ["embedded", "no-std", "hardware-support"]
+keywords = ["esp32", "embedded", "no-std", "mata", "identity"]
+categories = ["embedded", "no-std", "cryptography", "authentication"]
 
 [features]
 default = ["std"]
 # The feature ladder is the rusty_zstd one: `std` implies `alloc`; with neither,
-# the crate is pure `core` and still builds on riscv32 bare metal.
-std = ["alloc", "rusty_esp_core/std"]
-alloc = ["rusty_esp_core/alloc"]
+# the crate is pure `core` (keys, signing, the kms canonical form over borrowed
+# fields, adoption, nonce window, manifest signing) and builds on riscv32 bare
+# metal. `alloc` adds the JSON shapes (kms envelopes, JWS, the self-issued mID
+# token) and owned DID strings.
+std = [
+    "alloc",
+    "rusty_esp_core/std",
+    "p256/std",
+    "sha2/std",
+    "bs58/std",
+    "base64/std",
+    "serde?/std",
+    "serde_json?/std",
+]
+alloc = [
+    "rusty_esp_core/alloc",
+    "p256/alloc",
+    "bs58/alloc",
+    "base64/alloc",
+    "dep:serde",
+    "serde?/alloc",
+    "dep:serde_json",
+]
 
 [dependencies]
 rusty_esp_core = { workspace = true }
+p256 = { workspace = true }
+sha2 = { workspace = true }
+bs58 = { workspace = true }
+base64 = { workspace = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+# The oracles: device-issued bytes must verify with the real mid / kms crates.
+mid-verify = { workspace = true }
+mid-issuer = { workspace = true }
+kms-types = { workspace = true }
+kms-verifier = { workspace = true }
+kms-client = { workspace = true }
+mata-cap = { workspace = true }
+tokio = { version = "1", features = ["rt", "macros"] }
+serde_json = { version = "1" }
+p256 = { version = "0.13", features = ["ecdsa", "std"] }
 
 [lints]
 workspace = true
