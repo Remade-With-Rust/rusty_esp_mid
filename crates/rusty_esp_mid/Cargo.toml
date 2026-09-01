@@ -1,0 +1,30 @@
+[package]
+name = "rusty_esp_mid"
+description = "MATA mID on the chip: a device DID with its key at rest in encrypted NVS/eFuse, signed assertions, capability verification, owner adoption (bind-to-this-hub as a signed grant) and a signed capability manifest. Replaces vendor provisioning and cloud claiming. Memory safe, no_std core."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+readme = "../../README.md"
+documentation = "https://docs.rs/rusty_esp_mid"
+keywords = ["esp32", "embedded", "no-std", "mata", "remade-with-rust"]
+categories = ["embedded", "no-std", "hardware-support"]
+
+[features]
+default = ["std"]
+std = ["rusty_esp_mid-core/std", "rusty_esp_mid-esp/std"]
+alloc = ["rusty_esp_mid-core/alloc"]
+# Track B: bare metal, esp-hal + Embassy.
+esp-hal = ["rusty_esp_mid-esp/esp-hal"]
+# Track A: std on ESP-IDF via esp-idf-svc.
+esp-idf = ["rusty_esp_mid-esp/esp-idf"]
+
+[dependencies]
+rusty_esp_mid-core = { workspace = true }
+rusty_esp_mid-esp = { workspace = true }
+
+[lints]
+workspace = true
