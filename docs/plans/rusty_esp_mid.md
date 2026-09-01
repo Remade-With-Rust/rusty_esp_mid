@@ -64,30 +64,34 @@ Adoption {
 
 ## 3. Crate surface
 
-### `rusty_esp_mid-core` (`no_std`, `forbid(unsafe)`)
+### `rusty_esp_mid-core` (`no_std`, `forbid(unsafe)`) — as built in M0
 
 ```rust
-pub struct Did([u8; 33]);                       // compressed P-256 point; Display = did:mata:<base58btc>
-pub struct DeviceKey { /* p256 SigningKey; zeroize on drop */ }
-impl DeviceKey { fn generate(rng: &mut impl Rng) -> Result<Self>; fn did(&self) -> Did; fn to_kv / from_kv(kv: &impl Kv) }
+pub struct Did { /* [u8; 33] compressed P-256 point */ }        // did:mata:<base58btc>; write/parse without alloc
+pub struct DeviceKey { /* p256 SigningKey + DeviceId */ }        // generate(rng), load_or_generate(kv, rng), did(), shared_secret(their)
+pub trait DeviceSigner { fn device_id(&self) -> &str; fn sign_prehash(&self, prehash: &[u8; 32]) -> [u8; 64]; }   // byte-for-byte kms-client's
+pub fn verify_prehash(pubkey_sec1: &[u8], prehash: &[u8; 32], sig: &[u8; 64]) -> Result<()>;                    // low-s reject
 
-/// Byte-for-byte the trait `mid`'s kms-client defines, so the upstream extraction is a rename.
-pub trait DeviceSigner { fn device_id(&self) -> &str; fn sign_prehash(&self, prehash: &[u8; 32]) -> [u8; 64]; }
-
-pub struct Assertion;          // nonce envelope → canonical bytes → SHA-256 → sign; emits the gateway's `Resource-Assertion` JSON with a hand-written writer (no serde)
-pub struct SignedManifest<'a> { pub bytes: &'a [u8], pub sig: [u8; 64] }
-pub struct Adoption<'a> { /* fields above; encode/decode without alloc; verify(owner_pin) */ }
-pub struct OwnerPin { pub genesis_pubkey: [u8; 33], pub roster_version: u32 }   // Kv "mid.owner"
-pub struct NonceWindow<const N: usize>;   // single-use nonces, bounded, replay-safe
-pub mod cap { pub fn satisfies(grant: &str, request: &str) -> bool }   // mata-cap semantics, wire-identical, no_std
-pub mod ecdh { pub fn session_key(my: &DeviceKey, their: &[u8; 33], context: &[u8]) -> [u8; 32] }   // for rusty_esp_signal
+pub mod kms      { NonceEnvelopeRef<'_>::{validate, canonical_bytes, sign}                // no alloc
+                   json::{NonceEnvelope, SignedAssertion}::{from_json, to_json, sign} }   // alloc: serde + serde_json, field order = kms-types
+pub mod jws      { build_jws_compact(payload_json, signer) -> String }                    // alloc
+pub mod roster   { EmbeddedGenesisRoster, genesis_canonical_bytes, sign_genesis_roster }  // alloc; identical to mid-issuer
+pub mod token    { MidJwtPayload, ClaimValue, build_self_issued_token(...) -> String }     // alloc; verifies in mid-verify
+pub mod cap      { Cap::parse, grant_satisfies, any_satisfies }                          // mata-cap semantics, no alloc
+pub mod adoption { AdoptionFields<'_>::{encode, sign_into}, Adoption<'_>::{decode, verify_signature, accept, grants}, OwnerPin }
+pub struct NonceWindow<const N: usize>;                                                   // single-use nonces, bounded
+pub mod manifest { sign_manifest, verify_manifest, maker_prehash, verify_maker }
 ```
 
-Rules: `p256` with `default-features = false, features = ["ecdsa"]`;
-signatures are canonical low-s and verified with a low-s reject (the house
-audit's most common finding); every secret is zeroized on every path; `Debug`
-is redacted; `serde_json` is not a dependency — the two JSON shapes the
-gateway expects are written by hand and tested byte-for-byte against `mid`.
+Rules: `p256 0.13` with `default-features = false, features = ["ecdsa", "ecdh"]`
+(the majors `mid` pins, so one P-256 in any graph); signatures are canonical
+low-s and every verifier rejects high-s; `Debug` on the key is redacted and
+`p256` zeroizes the scalar on drop; the **core-only rung has no JSON and no
+heap** (keys, signatures, the borrowed kms canonical form, adoption, nonce
+window, manifest signing); the `alloc` rung adds `serde` + `serde_json` in
+`no_std` mode for the gateway's JSON envelopes and the token, with struct
+field order matching `kms-types` so the JSON is byte-identical. All of it is
+gated in `tests/oracle.rs` against the real `mid` crates.
 
 ### `rusty_esp_mid-esp`
 
