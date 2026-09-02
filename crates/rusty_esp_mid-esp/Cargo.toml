@@ -30,5 +30,9 @@ allow-insecure-dev = []
 rusty_esp_mid-core = { workspace = true }
 esp-idf-svc = { version = "0.52", optional = true }
 
+[build-dependencies]
+# Re-emits esp-idf-sys's cfgs to this crate (build.rs); a no-op on the host.
+embuild = { version = "0.33", features = ["espidf"] }
+
 [lints]
 workspace = true
