@@ -4,10 +4,11 @@
 //!
 //! This is the **wrap** crate of the package: where the silicon must be
 //! touched, it calls the esp-rs HAL (Track B, `esp-hal`) or ESP-IDF (Track A,
-//! `esp-idf`) and exposes the core crate's traits over it. Nothing product- or
-//! codec-specific lives here; that is the core's job.
+//! `esp-idf`) and exposes the core crate's seams over it — `Kv` for the key's
+//! home, `Rng` for the entropy the key is born from. Nothing identity-specific
+//! lives here; that is the core's job.
 //!
-//! `unsafe` is denied crate-wide; a backend that must use it at a DMA or FFI
+//! `unsafe` is denied crate-wide; a backend that must use it at an FFI
 //! boundary opts in per block with `#[allow(unsafe_code)]` and a `// SAFETY:`
 //! comment stating the invariant.
 
@@ -46,5 +47,9 @@ pub mod hal {
 
 #[cfg(feature = "esp-idf")]
 pub mod idf {
-    //! Track A backends. Drivers land here with their esp-idf-svc pin.
+    //! Track A backends over esp-idf-svc 0.52.
+    pub mod nvs;
+    pub mod rng;
+    pub use nvs::{EspNvsKv, Protection};
+    pub use rng::EspRng;
 }

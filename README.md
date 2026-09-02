@@ -25,7 +25,12 @@ run that produced it. Nothing here has run on a chip yet.
 
 ## Status
 
-**M0 shipped on the host (2026-09-01).** The core is complete for what a
+**M0 shipped on the host (2026-09-01); M1/M2 host halves done in J3** — the
+Track A NVS key store with its encryption check and the TRNG seam are written
+(`rusty_esp_mid-esp`), and adoption over the mesh is proven on the host in
+`rusty_esp_iroh` (owner adopts, stranger denied, rotation backwards refused).
+
+**M0 detail.** The core is complete for what a
 device does with its identity, and it is gated against the real `mid`
 crates: bytes this crate emits are accepted by `kms-verifier` and
 `mid-verify`, and where the format is deterministic they are identical to
