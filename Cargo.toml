@@ -18,6 +18,10 @@ rust-version = "1.85"
 [workspace.lints.rust]
 unsafe_code = "deny"
 missing_docs = "warn"
+# esp-idf-sys registers only the sdkconfig symbols that are SET as known cfgs;
+# the two `rusty_esp_mid-esp` reads may legitimately be unset (a development
+# board), so tell rustc they are expected.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(esp_idf_nvs_encryption)", "cfg(esp_idf_secure_flash_enc_enabled)"] }
 
 [workspace.lints.clippy]
 undocumented_unsafe_blocks = "deny"

@@ -1,14 +1,20 @@
 //! Track A: `EspNvsKv`, ESP-IDF NVS behind the `Kv` seam, with the check the
 //! plan demands — **a device key is never stored in a plaintext partition**.
 //!
-//! What "encrypted" means here, stated exactly: NVS encryption
-//! (`CONFIG_NVS_ENCRYPTION`, XTS-AES keys in the `nvs_keys` partition) is on
-//! **and** flash encryption is enabled on this chip
-//! (`esp_flash_encryption_enabled()`), so neither a flash dump nor a
-//! plaintext `nvs_keys` partition yields the key. Anything less is
+//! What "encrypted" means here, stated exactly: the firmware was configured
+//! with NVS encryption (`CONFIG_NVS_ENCRYPTION`, XTS-AES keys in the
+//! `nvs_keys` partition) **and** flash encryption
+//! (`CONFIG_SECURE_FLASH_ENC_ENABLED`, which makes the bootloader encrypt the
+//! flash and the `nvs_keys` partition on first boot), so neither a flash dump
+//! nor a plaintext `nvs_keys` partition yields the key. Anything less is
 //! [`Protection::Plaintext`], and [`EspNvsKv::open`] refuses it unless the
 //! crate is built with `allow-insecure-dev` — the tier a development board
 //! runs at, recorded in the ledger, never shipped.
+//!
+//! Both facts come from `sdkconfig` at build time (esp-idf-sys exposes every
+//! `CONFIG_*` as a `cfg`), so no FFI is needed. The eFuse *runtime* truth —
+//! did the bootloader actually burn the keys — is the M3 secure-boot work,
+//! read through `esp_efuse` when the Digital Signature path lands.
 
 use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs, NvsDefault};
 use esp_idf_svc::sys::EspError;
@@ -18,21 +24,21 @@ use rusty_esp_mid_core::esp_core::hal::{check_key, Kv};
 /// How well the partition protects what is written to it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Protection {
-    /// NVS encryption and flash encryption are both on.
+    /// NVS encryption and flash encryption are both configured.
     Encrypted,
     /// At least one of them is off: a flash dump reveals the values.
     Plaintext,
 }
 
-/// Read ESP-IDF's answer for this build and this chip.
+/// Whether this firmware was configured with NVS encryption.
+pub const NVS_ENCRYPTION: bool = cfg!(esp_idf_nvs_encryption);
+/// Whether this firmware was configured with flash encryption.
+pub const FLASH_ENCRYPTION: bool = cfg!(esp_idf_secure_flash_enc_enabled);
+
+/// ESP-IDF's answer for this build.
 #[must_use]
-pub fn protection() -> Protection {
-    let nvs_encryption = cfg!(esp_idf_nvs_encryption);
-    // SAFETY: a plain query of the eFuse-backed flash-encryption state; no
-    // pointers, no preconditions, always safe to call after boot.
-    #[allow(unsafe_code)]
-    let flash_encryption = unsafe { esp_idf_svc::sys::esp_flash_encryption_enabled() };
-    if nvs_encryption && flash_encryption {
+pub const fn protection() -> Protection {
+    if NVS_ENCRYPTION && FLASH_ENCRYPTION {
         Protection::Encrypted
     } else {
         Protection::Plaintext
