@@ -29,6 +29,7 @@ std = [
     "base64/std",
     "serde?/std",
     "serde_json?/std",
+    "mid-types?/std",
 ]
 alloc = [
     "rusty_esp_core/alloc",
@@ -38,9 +39,13 @@ alloc = [
     "dep:serde",
     "serde?/alloc",
     "dep:serde_json",
+    "dep:mid-types",
 ]
 
 [dependencies]
+# The mID wire types and canonical bytes, shared with mid-issuer / mid-verify
+# (M5): this crate signs them, it no longer defines them.
+mid-types = { workspace = true, optional = true }
 rusty_esp_core = { workspace = true }
 p256 = { workspace = true }
 sha2 = { workspace = true }

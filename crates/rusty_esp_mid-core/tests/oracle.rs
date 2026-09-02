@@ -12,7 +12,7 @@ use kms_verifier::{InMemoryDidResolver, InMemoryNonceStore, Verifier};
 use p256::ecdsa::{SigningKey, VerifyingKey};
 use rusty_esp_mid_core::kms::json::NonceEnvelope;
 use rusty_esp_mid_core::roster::sign_genesis_roster;
-use rusty_esp_mid_core::token::{ClaimValue, SignInRequest, build_self_issued_token};
+use rusty_esp_mid_core::token::{self_attested, SignInRequest, build_self_issued_token};
 use rusty_esp_mid_core::{DeviceKey, DeviceSigner, cap};
 
 const AUDIENCE: &str = "https://home.local";
@@ -137,7 +137,7 @@ fn self_issued_token_verifies_with_mid_verify() {
     let k = device();
     let did = k.did().to_did_string();
     let mut claims = BTreeMap::new();
-    claims.insert("name".to_string(), ClaimValue::string("acme doorbell"));
+    claims.insert("name".to_string(), self_attested("acme doorbell"));
     let jwt = build_self_issued_token(
         &k.did(),
         &k,

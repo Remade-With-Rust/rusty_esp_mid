@@ -41,6 +41,13 @@ without `alloc`.
 Not yet: the `-esp` backends (encrypted NVS, TRNG, eFuse-wrapped key,
 secure element) — that is M1 and needs a board.
 
+**M5 (2026-09-02):** the mID wire types and canonical bytes now come from
+`mid-types`, a `no_std` leaf carved out of `mid-issuer` on an upstream
+branch (`no-std-types`, with `mid-verify` made `no_std` over it); this core
+keeps only what a device does with them: sign a genesis roster, issue its
+own token, sign its manifest. The oracle tests that compare bytes with
+`mid-issuer` and verify with `mid-verify` still pass (35 tests).
+
 ## What is in the core
 
 | Module | What | Interoperates with |

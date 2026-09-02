@@ -10,104 +10,42 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use rusty_esp_core::error::{Error, Result};
-use serde::{Deserialize, Serialize};
 
 use crate::did::Did;
 use crate::jws::build_jws_compact;
-use crate::roster::{EmbeddedGenesisRoster, VerificationMethod, sign_genesis_roster};
+use crate::roster::{VerificationMethod, sign_genesis_roster};
 use crate::signer::DeviceSigner;
 
 /// Provenance of a claim. v1 has exactly one variant.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AttestedBy {
-    /// Supplied by the identity itself, covered by the outer signature.
-    #[serde(rename = "self")]
-    SelfAttested,
-}
+pub use mid_types::{
+    AttestedBy, ClaimValue, EmbeddedRosterChainEntry, EmbeddedVerificationMethod, MidJwtPayload,
+};
 
-/// A claim value with provenance.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ClaimValue {
-    /// The value.
-    pub value: serde_json::Value,
-    /// Provenance.
-    pub attested_by: AttestedBy,
-    /// Only on `email`, only when verified at signup. Never set by a device.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub verified_at_signup: Option<bool>,
-    /// Only on derived claims.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub computed_at: Option<u64>,
-    /// Only on derived claims.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub formula_version: Option<String>,
-}
-
-impl ClaimValue {
-    /// A self-attested string claim.
-    #[must_use]
-    pub fn string(value: &str) -> Self {
-        ClaimValue {
-            value: serde_json::Value::String(String::from(value)),
-            attested_by: AttestedBy::SelfAttested,
-            verified_at_signup: None,
-            computed_at: None,
-            formula_version: None,
-        }
+/// A self-attested string claim (what a device says about itself).
+#[must_use]
+pub fn self_attested(value: &str) -> ClaimValue {
+    ClaimValue {
+        value: serde_json::Value::String(String::from(value)),
+        attested_by: AttestedBy::SelfAttested,
+        verified_at_signup: None,
+        computed_at: None,
+        formula_version: None,
     }
 }
 
-/// The current device's verification method, slim form.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EmbeddedVerificationMethod {
-    /// `did:mata:…#<device_id>`.
-    pub id: String,
-    /// Always [`crate::VM_TYPE_ECDSA_P256`].
-    #[serde(rename = "type")]
-    pub vm_type: String,
-    /// The controlling DID.
-    pub controller: String,
-    /// `z<base58>`.
-    pub public_key_multibase: String,
-}
-
-impl From<VerificationMethod> for EmbeddedVerificationMethod {
-    fn from(vm: VerificationMethod) -> Self {
-        EmbeddedVerificationMethod {
-            id: vm.id,
-            vm_type: vm.vm_type,
-            controller: vm.controller,
-            public_key_multibase: vm.public_key_multibase,
-        }
+/// The verification method as the token embeds it.
+#[must_use]
+pub fn embedded_vm(vm: VerificationMethod) -> EmbeddedVerificationMethod {
+    EmbeddedVerificationMethod {
+        id: vm.id,
+        vm_type: vm.vm_type,
+        controller: vm.controller,
+        public_key_multibase: vm.public_key_multibase,
     }
 }
 
-/// The mID JWT payload.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MidJwtPayload {
-    /// Issuer: the DID.
-    pub iss: String,
-    /// Subject: the DID.
-    pub sub: String,
-    /// The relying party's audience string (its origin).
-    pub aud: String,
-    /// Issued at, Unix seconds.
-    pub iat: u64,
-    /// Expiry, Unix seconds.
-    pub exp: u64,
-    /// The RP's single-use nonce, echoed.
-    pub nonce: String,
-    /// Consented claims.
-    pub claims: BTreeMap<String, ClaimValue>,
-    /// The self-signed genesis roster.
-    pub embedded_genesis_roster: EmbeddedGenesisRoster,
-    /// Roster mutations since genesis (none for a device).
-    pub embedded_roster_chain: Vec<serde_json::Value>,
-    /// The signing key's verification method.
-    pub embedded_verification_method: EmbeddedVerificationMethod,
-}
-
-/// What a relying party asked for, minus the consent UI a device does not have.
+/// What a relying party asks a device to sign in with: its audience and a
+/// single-use nonce.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignInRequest<'a> {
     /// The RP's audience (its exact origin).
@@ -148,7 +86,7 @@ pub fn build_self_issued_token(
         claims,
         embedded_genesis_roster: genesis,
         embedded_roster_chain: Vec::new(),
-        embedded_verification_method: vm.into(),
+        embedded_verification_method: embedded_vm(vm),
     };
     let json = serde_json::to_vec(&payload).map_err(|_| Error::InvalidFormat)?;
     Ok(build_jws_compact(&json, signer))
@@ -163,7 +101,7 @@ mod tests {
     fn token_has_three_segments_and_echoes_the_request() {
         let k = DeviceKey::from_seed_for_tests("tok", "cam-1");
         let mut claims = BTreeMap::new();
-        claims.insert(String::from("name"), ClaimValue::string("acme doorbell"));
+        claims.insert(String::from("name"), self_attested("acme doorbell"));
         let jwt = build_self_issued_token(
             &k.did(),
             &k,

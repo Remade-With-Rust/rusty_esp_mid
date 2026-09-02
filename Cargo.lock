@@ -1327,7 +1327,6 @@ dependencies = [
 [[package]]
 name = "kms-client"
 version = "0.2.0"
-source = "git+https://github.com/Remade-With-Rust/mid#3ba91af40219800b592db731cdd329341cceda73"
 dependencies = [
  "getrandom 0.2.17",
  "kms-types",
@@ -1342,7 +1341,6 @@ dependencies = [
 [[package]]
 name = "kms-types"
 version = "0.2.0"
-source = "git+https://github.com/Remade-With-Rust/mid#3ba91af40219800b592db731cdd329341cceda73"
 dependencies = [
  "base64",
  "serde",
@@ -1354,7 +1352,6 @@ dependencies = [
 [[package]]
 name = "kms-verifier"
 version = "0.2.0"
-source = "git+https://github.com/Remade-With-Rust/mid#3ba91af40219800b592db731cdd329341cceda73"
 dependencies = [
  "async-trait",
  "getrandom 0.2.17",
@@ -1428,7 +1425,6 @@ checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 [[package]]
 name = "mata-cap"
 version = "0.2.0"
-source = "git+https://github.com/Remade-With-Rust/mid#3ba91af40219800b592db731cdd329341cceda73"
 dependencies = [
  "serde",
  "thiserror 1.0.69",
@@ -1443,11 +1439,11 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 [[package]]
 name = "mid-issuer"
 version = "0.2.0"
-source = "git+https://github.com/Remade-With-Rust/mid#3ba91af40219800b592db731cdd329341cceda73"
 dependencies = [
  "base64",
  "kms-client",
  "kms-types",
+ "mid-types",
  "serde",
  "serde_json",
  "sha2",
@@ -1455,18 +1451,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "mid-types"
+version = "0.2.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mid-verify"
 version = "0.2.0"
-source = "git+https://github.com/Remade-With-Rust/mid#3ba91af40219800b592db731cdd329341cceda73"
 dependencies = [
  "base64",
  "bs58",
- "mid-issuer",
+ "mid-types",
  "p256",
  "serde",
  "serde_json",
  "sha2",
- "thiserror 1.0.69",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -1965,6 +1968,7 @@ dependencies = [
  "kms-verifier",
  "mata-cap",
  "mid-issuer",
+ "mid-types",
  "mid-verify",
  "p256",
  "rusty_esp_core",
