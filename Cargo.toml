@@ -35,7 +35,7 @@ rusty_esp_mid-esp = { path = "crates/rusty_esp_mid-esp", version = "0.1.0", defa
 # Siblings in the Janus family are consumed BY GIT URL so this repo deploys on
 # its own. Inside the Janus umbrella folder, `.cargo/config.toml` patches the
 # URL to the sibling checkout, so local edits are visible without a push.
-rusty_esp_core = { git = "https://github.com/Remade-With-Rust/rusty_esp_core", default-features = false }
+rusty_esp_core = { version = "0.1", git = "https://github.com/Remade-With-Rust/rusty_esp_core", default-features = false }
 
 # Crypto — RustCrypto only, pinned to the majors the `mid` repository uses so
 # the whole family agrees on one P-256 and one SHA-2 in a build graph.
