@@ -38,3 +38,16 @@ ninety at the roster cap.
 - Sign and verify cycle counts per chip (needs hardware; M1).
 - Binary size contribution of the `alloc` rung on an ESP32-S3 (needs the
   firmware project; M1).
+
+## The no-panic gate (host, 2026-09-02)
+
+Every parser that takes bytes from a wire, a store or a bus must return an
+error on bad input, never panic — the house rule made a test:
+`tests/no_panic.rs` feeds each one random inputs from an LCG (the same corpus
+on every machine) and mutations of a valid encoding (bit flips, overwrites,
+truncation, extension, insertion, removal), under `catch_unwind` so a failure
+names the parser and prints the input.
+
+| covered | result |
+|---|---|
+| `Adoption::decode` + `verify_signature`, `OwnerPin::decode` (20 000), `Did::parse` / `parse_multibase`, `Cap::parse` (30 000 strings), `kms::json::{NonceEnvelope, SignedAssertion}::from_json` (20 000 mutated JSON documents) | no finding |
