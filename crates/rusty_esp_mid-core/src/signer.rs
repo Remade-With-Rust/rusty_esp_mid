@@ -25,8 +25,10 @@ pub trait DeviceSigner {
 }
 
 /// Verify a 64-byte `r || s` P-256 signature over `prehash` under a 33-byte
-/// compressed public key, **rejecting high-s** (the malleability defence
-/// every MATA verifier applies).
+/// compressed public key, **rejecting high-s** — the malleability defence
+/// every Janus verifier applies (they all route through here; the plan's M4
+/// audit table lists them). Upstream `mid-verify` verifies the scalars as
+/// given today; the oracle test pins that so the difference is never silent.
 pub fn verify_prehash(pubkey_sec1: &[u8], prehash: &[u8; 32], signature: &[u8; 64]) -> Result<()> {
     let key = VerifyingKey::from_sec1_bytes(pubkey_sec1).map_err(|_| Error::Crypto)?;
     let sig = Signature::from_slice(signature).map_err(|_| Error::Crypto)?;

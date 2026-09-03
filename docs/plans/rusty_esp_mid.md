@@ -130,7 +130,7 @@ bytes) does.
 | **M2** (J3) ◐ host half 2026-09-01 | adoption over QR ticket with the home computer app; TOFU pin; rehome; revoke by roster rotation. **Done on the host** (in `rusty_esp_iroh`): the `janus1…` QR ticket, `Adopt` over `janus/rpc/1` gated by the caller assertion, the pin stored through `Kv`, a second owner and a backwards roster version refused | the J3 family kill test; a second owner's adoption is refused; a factory reset (strapping-pin hold) clears the pin and nothing else — **needs the board and the app** |
 | **M2** (J3) | adoption over QR ticket with the home computer app; TOFU pin; rehome; revoke by roster rotation | the J3 family kill test; a second owner's adoption is refused; a factory reset (strapping-pin hold) clears the pin and nothing else |
 | **M3** | `DsSigner` on S3/C6/P4 — key never readable; `Certified` tier | the signature verifies against the DID; the flash image contains no private key; secure boot + flash encryption + NVS encryption all reported on |
-| **M4** | ATECC608 path; `use-protection-please` audit of the package | the audit table complete; every verifier has a low-s reject beside it |
+| **M4** ◐ host half 2026-09-02 | ATECC608 path; `use-protection-please` audit of the package. **Done on the host:** the verifier audit (§ M4 audit below): every ECDSA verifier in the Janus family routes through `verify_prehash`, which rejects high-s, and the one place that does not is upstream `mid-verify`, which accepts the high-s twin of a device token — pinned by an oracle test and filed upstream | the audit table complete; every verifier has a low-s reject beside it — **the Janus column is complete; the upstream column waits on `mid-verify`; the ATECC608 path waits on a board** |
 | **M5** ◐ upstream branch 2026-09-02 | `mid` upstream refactor merged; this core becomes a thin layer over `mid-verify`'s `no_std` types. **Done:** upstream branch `no-std-types` on `Remade-With-Rust/mid` — a new `mid-types` leaf (`no_std` + `alloc`: the JWT payload, embedded rosters, verification methods, the canonical signing bytes), `mid-issuer` re-exporting it from the same paths, `mid-verify` `no_std` over it (thiserror 2, `std` a forwarding default feature); this core now imports the types and canonical bytes from `mid-types` and keeps only the device-side builders (`sign_genesis_roster`, `build_self_issued_token`, `self_attested`) | byte-identical assertions before and after the switch — **passed** (35 tests including the oracles that compare the genesis roster's canonical bytes with `mid-issuer` and verify the self-issued token with `mid-verify`); what remains is the merge upstream and the switch of the git branch to a release |
 
 ## 6. A note on the DS peripheral
@@ -168,3 +168,29 @@ guarantee each tier actually gives; the manifest reports it.
 | 2026-09-01 | `DeviceSigner` is copied byte-for-byte from `mid` so the upstream extraction is a rename. |
 | 2026-09-01 | The `mid` `no_std` work is an upstream mission, not a fork. |
 | 2026-09-01 | Tier truth: eFuse-wrapped NVS key on plain ESP32 parts; a secure element for "never leaves silicon". |
+
+## M4 audit: every verifier and the low-s rule (2026-09-02)
+
+ECDSA is malleable: for a valid `(r, s)` the twin `(r, n − s)` verifies too.
+A verifier that accepts both lets a relayed token be re-encoded without the
+key, which breaks any scheme that treats the signature bytes as an
+identifier (replay windows keyed on them, dedup, audit logs). The family's
+rule is one verifier behaviour everywhere: sign low-s, **reject** high-s.
+
+| verifier | crate · file | what it checks | high-s |
+|---|---|---|---|
+| `verify_prehash` | `rusty_esp_mid-core` · `signer.rs` | P-256 over a SHA-256 prehash under a SEC1 compressed key | **rejects** (`normalize_s().is_some()` → `Crypto`); test `high_s_is_rejected` |
+| `Adoption::verify_signature` | `rusty_esp_mid-core` · `adoption.rs` | the owner's genesis key over the adoption fields | through `verify_prehash` → rejects |
+| `verify_manifest`, `verify_maker` | `rusty_esp_mid-core` · `manifest.rs` | device key over the manifest bytes; maker key over model + firmware | through `verify_prehash` → rejects |
+| `DeviceKey::sign_prehash` (producer) | `rusty_esp_mid-core` · `key.rs` | — | always emits low-s (`normalize_s` on sign); test `signatures_are_low_s_and_verify` |
+| `Assertion::verify` | `rusty_esp_iroh-core` · `assertion.rs` | the caller's DID key over the canonical envelope, then the nonce window | through `verify_prehash` → rejects |
+| `Binding::verify` | `rusty_esp_iroh-core` · `binding.rs` | device key over the iroh `EndpointId` | through `verify_prehash` → rejects |
+| `OtaManifest::verify` | `rusty_esp_iroh-core` · `ota.rs` | maker key over the OTA manifest (`janus-ota-v1`) | through `verify_prehash` → `Refusal::BadSignature` |
+| link session `Hello` / `Accept` | `rusty_esp_signal-core` · `link.rs` | no ECDSA: static P-256 ECDH (Noise-KK shape), HMAC-SHA256 key confirmation, per-frame MACs | not applicable — nothing to malleate |
+| `check_genesis_self_signature`, the chain-entry and JWS checks | upstream `mid-verify` · `checks.rs` | genesis self-signature, roster chain entries, the ES256 JWS | **accepts** the high-s twin (`Signature::from_slice` then `verify_prehash`, no normalisation check); pinned by the oracle test `high_s_twin_refused_here_and_its_fate_upstream_is_pinned`, which fails the day upstream changes so this row gets its tick |
+| `kms-verifier` | upstream `kms-verifier` | signed assertions from the device | not yet tried with a twin — the next row to pin |
+
+What the ATECC608 half needs: the part on an I²C bus, the `DeviceSigner`
+impl over its sign command, and the same `high_s_is_rejected` test run
+against signatures it produced (the part emits low-s by specification; the
+test says so or it does not).

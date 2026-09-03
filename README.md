@@ -48,6 +48,13 @@ keeps only what a device does with them: sign a genesis roster, issue its
 own token, sign its manifest. The oracle tests that compare bytes with
 `mid-issuer` and verify with `mid-verify` still pass (35 tests).
 
+**M4's host half (2026-09-02):** the verifier audit. Every ECDSA verifier in
+the family (adoption, manifest, maker, iroh assertion, binding, OTA) routes
+through `verify_prehash`, which rejects the high-s twin of a signature; the
+signal link has no signature to malleate; upstream `mid-verify` accepts the
+twin today, and an oracle test pins that so a change either way is noticed.
+The table is in the plan.
+
 ## What is in the core
 
 | Module | What | Interoperates with |

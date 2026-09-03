@@ -19,7 +19,7 @@
 use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs, NvsDefault};
 use esp_idf_svc::sys::EspError;
 use rusty_esp_mid_core::esp_core::error::{Error, Result};
-use rusty_esp_mid_core::esp_core::hal::{check_key, Kv};
+use rusty_esp_mid_core::esp_core::hal::{Kv, check_key};
 
 /// How well the partition protects what is written to it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,7 +62,8 @@ impl core::fmt::Debug for EspNvsKv {
 fn map(e: EspError) -> Error {
     match e.code() {
         esp_idf_svc::sys::ESP_ERR_NVS_NOT_FOUND => Error::Corrupt,
-        esp_idf_svc::sys::ESP_ERR_NVS_INVALID_LENGTH | esp_idf_svc::sys::ESP_ERR_NVS_INVALID_NAME => Error::InvalidFormat,
+        esp_idf_svc::sys::ESP_ERR_NVS_INVALID_LENGTH
+        | esp_idf_svc::sys::ESP_ERR_NVS_INVALID_NAME => Error::InvalidFormat,
         esp_idf_svc::sys::ESP_ERR_NVS_NOT_ENOUGH_SPACE => Error::BufferTooSmall { needed: 0 },
         _ => Error::Hardware,
     }

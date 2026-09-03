@@ -12,7 +12,7 @@ use kms_verifier::{InMemoryDidResolver, InMemoryNonceStore, Verifier};
 use p256::ecdsa::{SigningKey, VerifyingKey};
 use rusty_esp_mid_core::kms::json::NonceEnvelope;
 use rusty_esp_mid_core::roster::sign_genesis_roster;
-use rusty_esp_mid_core::token::{self_attested, SignInRequest, build_self_issued_token};
+use rusty_esp_mid_core::token::{SignInRequest, build_self_issued_token, self_attested};
 use rusty_esp_mid_core::{DeviceKey, DeviceSigner, cap};
 
 const AUDIENCE: &str = "https://home.local";
@@ -280,6 +280,80 @@ fn token_size_ledger() {
     assert!(
         sizes.windows(2).all(|w| w[0].1 < w[1].1),
         "size grows with the roster"
+    );
+}
+
+/// M4's audit row for the upstream verifier, as a test rather than a claim:
+/// this core refuses the high-s twin of any signature (ECDSA malleability;
+/// `verify_prehash` in `signer.rs`), and the same twin of a self-issued
+/// token, re-encoded into the JWS, is what `mid-verify` on the host makes
+/// of it. The assertion pins today's upstream behaviour so a change either
+/// way is noticed here, and the plan's audit table cites this test.
+#[test]
+fn high_s_twin_refused_here_and_its_fate_upstream_is_pinned() {
+    use base64::Engine as _;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    use p256::ecdsa::Signature;
+    use p256::ecdsa::signature::hazmat::PrehashVerifier as _;
+    use sha2::{Digest, Sha256};
+
+    let k = device();
+    let jwt = build_self_issued_token(
+        &k.did(),
+        &k,
+        &SignInRequest {
+            audience: AUDIENCE,
+            nonce: "nonce-hs",
+        },
+        NOW,
+        3600,
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut parts = jwt.splitn(3, '.');
+    let (h, p, s) = (
+        parts.next().unwrap(),
+        parts.next().unwrap(),
+        parts.next().unwrap(),
+    );
+    let sig_bytes = URL_SAFE_NO_PAD.decode(s).unwrap();
+    let low = Signature::from_slice(&sig_bytes).unwrap();
+    assert!(low.normalize_s().is_none(), "the device emits low-s");
+    let (r, s_scalar) = low.split_scalars();
+    let high = Signature::from_scalars(r, -*s_scalar).unwrap();
+    assert!(high.normalize_s().is_some(), "the twin is high-s");
+
+    // The raw ECDSA layer: the twin is a valid signature over the same
+    // prehash (that is what malleability means) ...
+    let signing_input = format!("{h}.{p}");
+    let prehash: [u8; 32] = Sha256::digest(signing_input.as_bytes()).into();
+    let key = VerifyingKey::from_sec1_bytes(k.did().pubkey()).unwrap();
+    key.verify_prehash(&prehash, &high).unwrap();
+    // ... and this core's verifier still refuses it.
+    let mut high_raw = [0u8; 64];
+    high_raw.copy_from_slice(&high.to_bytes());
+    assert_eq!(
+        rusty_esp_mid_core::verify_prehash(k.did().pubkey(), &prehash, &high_raw),
+        Err(rusty_esp_core::Error::Crypto)
+    );
+
+    // Upstream, today: `mid-verify` verifies the scalars as given, so the
+    // high-s twin of a device token is accepted there. When upstream adds
+    // the reject, this assertion flips and the audit table gets its tick.
+    let twin = format!("{h}.{p}.{}", URL_SAFE_NO_PAD.encode(high.to_bytes()));
+    let cfg = mid_verify::VerifyConfig {
+        expected_audience: AUDIENCE.into(),
+        expected_nonce: "nonce-hs".into(),
+        max_iat_skew_secs: 120,
+        now_unix_secs: NOW + 5,
+    };
+    assert!(
+        mid_verify::verify_mid_response(&jwt, &cfg).is_ok(),
+        "the low-s original verifies"
+    );
+    assert!(
+        mid_verify::verify_mid_response(&twin, &cfg).is_ok(),
+        "UPSTREAM CHANGED: mid-verify now refuses the high-s twin — update the M4 audit table"
     );
 }
 

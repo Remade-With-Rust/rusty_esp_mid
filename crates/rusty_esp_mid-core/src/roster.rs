@@ -21,7 +21,7 @@ use crate::did::Did;
 use crate::signer::DeviceSigner;
 
 /// Domain separator of the genesis roster envelope.
-pub use mid_types::canonical::{genesis_canonical_bytes, GENESIS_DOMAIN};
+pub use mid_types::canonical::{GENESIS_DOMAIN, genesis_canonical_bytes};
 pub use mid_types::{EmbeddedGenesisRoster, VerificationMethod};
 
 /// The verification method a device publishes for its key: id `<did>#<device_id>`,
