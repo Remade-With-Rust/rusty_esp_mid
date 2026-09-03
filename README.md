@@ -48,6 +48,11 @@ keeps only what a device does with them: sign a genesis roster, issue its
 own token, sign its manifest. The oracle tests that compare bytes with
 `mid-issuer` and verify with `mid-verify` still pass (35 tests).
 
+**The signer seam (2026-09-02, evening):** `DeviceSigner` comes from upstream
+`mid-signer` now (PR #3), re-exported here; the byte-for-byte copy this crate
+carried is gone, and the same trait serves the software key, the `-esp` NVS
+key and, when it comes, a secure element.
+
 **M4's host half (2026-09-02):** the verifier audit. Every ECDSA verifier in
 the family (adoption, manifest, maker, iroh assertion, binding, OTA) routes
 through `verify_prehash`, which rejects the high-s twin of a signature; the

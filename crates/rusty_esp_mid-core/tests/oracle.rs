@@ -6,7 +6,6 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use kms_client::DeviceSigner as _;
 use kms_types::{DidDocumentV2, RosterEntry};
 use kms_verifier::{InMemoryDidResolver, InMemoryNonceStore, Verifier};
 use p256::ecdsa::{SigningKey, VerifyingKey};

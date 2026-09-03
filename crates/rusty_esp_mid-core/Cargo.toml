@@ -30,6 +30,7 @@ std = [
     "serde?/std",
     "serde_json?/std",
     "mid-types?/std",
+    "mid-signer/std",
 ]
 alloc = [
     "rusty_esp_core/alloc",
@@ -40,6 +41,7 @@ alloc = [
     "serde?/alloc",
     "dep:serde_json",
     "dep:mid-types",
+    "mid-signer/alloc",
 ]
 
 [dependencies]
@@ -47,6 +49,8 @@ alloc = [
 # (M5): this crate signs them, it no longer defines them.
 mid-types = { workspace = true, optional = true }
 rusty_esp_core = { workspace = true }
+# The device-signing seam itself, from upstream: the trait this crate used to copy.
+mid-signer = { workspace = true }
 p256 = { workspace = true }
 sha2 = { workspace = true }
 bs58 = { workspace = true }

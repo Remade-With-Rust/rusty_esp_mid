@@ -1,28 +1,18 @@
-//! The signing seam — **byte-for-byte** the trait `mid`'s `kms-client` defines.
+//! The signing seam — upstream `mid-signer`'s [`DeviceSigner`], re-exported,
+//! plus the family's verifier.
 //!
-//! It is copied rather than depended on because `kms-client` today drags
-//! `reqwest` and tokio into any crate that names the trait. When `mid`
-//! extracts it into a leaf crate, this module becomes a re-export and no call
-//! site changes.
+//! This module used to carry a byte-for-byte copy of the trait because
+//! `kms-client` dragged `reqwest` and tokio into any crate that named it.
+//! The leaf exists now (`mid-signer`, `no_std` without an allocator), so the
+//! copy is gone and every implementation here — [`crate::DeviceKey`] in
+//! software, a secure element or eFuse key in the `-esp` crate — implements
+//! the one upstream trait.
 
 use p256::ecdsa::signature::hazmat::PrehashVerifier;
 use p256::ecdsa::{Signature, VerifyingKey};
 use rusty_esp_core::error::{Error, Result};
 
-/// The abstract capability every signer provides: a stable id and a
-/// canonical (low-s) ECDSA P-256 signature over a 32-byte prehash.
-///
-/// Implementations: [`crate::DeviceKey`] (software key in encrypted NVS),
-/// and in the `-esp` crate a secure-element or eFuse-backed signer.
-pub trait DeviceSigner {
-    /// Stable identifier of this signing device. Matched against a
-    /// `device_id` in the roster.
-    fn device_id(&self) -> &str;
-
-    /// Sign a 32-byte SHA-256 prehash. Returns the canonical (low-s)
-    /// 64-byte `r || s` representation.
-    fn sign_prehash(&self, prehash: &[u8; 32]) -> [u8; 64];
-}
+pub use mid_signer::{DeviceSigner, canonical_bytes};
 
 /// Verify a 64-byte `r || s` P-256 signature over `prehash` under a 33-byte
 /// compressed public key, **rejecting high-s** — the malleability defence
