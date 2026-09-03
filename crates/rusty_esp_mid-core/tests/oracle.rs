@@ -130,6 +130,28 @@ async fn kms_assertion_verifies_with_kms_verifier_and_replay_is_refused() {
             .await
             .is_err()
     );
+
+    // M4's last audit row: kms-verifier refuses the high-s twin of an
+    // assertion, and a refused twin does not burn the nonce (the signature
+    // check comes before the consume), so the honest original still lands.
+    let issued = verifier.issue_nonce(&did, "janus.telemetry").await.unwrap();
+    let env = NonceEnvelope::from_json(&serde_json::to_string(&issued).unwrap()).unwrap();
+    let honest: kms_types::SignedAssertion =
+        serde_json::from_str(&env.sign(&k).unwrap().to_json()).unwrap();
+    let low = p256::ecdsa::Signature::from_slice(&honest.signature).unwrap();
+    assert!(low.normalize_s().is_none());
+    let (r, s) = low.split_scalars();
+    let high = p256::ecdsa::Signature::from_scalars(r, -*s).unwrap();
+    let mut twin = honest.clone();
+    twin.signature = high.to_bytes().to_vec();
+    assert!(
+        verifier.verify(&twin, "janus.telemetry").await.is_err(),
+        "kms-verifier rejects high-s"
+    );
+    verifier
+        .verify(&honest, "janus.telemetry")
+        .await
+        .expect("the refused twin did not consume the nonce");
 }
 
 #[test]
