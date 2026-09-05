@@ -15,8 +15,20 @@
 //! `CONFIG_*` as a `cfg`), so no FFI is needed. The eFuse *runtime* truth —
 //! did the bootloader actually burn the keys — is the M3 secure-boot work,
 //! read through `esp_efuse` when the Digital Signature path lands.
+//!
+//! **Which partition.** The owner's settings (Wi-Fi, name, maker) live in
+//! the default `nvs` partition, which a provisioning tool rewrites whole.
+//! The device's key must not share it: on 2026-09-05 an ESP32-CAM minted a
+//! new DID at every settings rewrite until the key moved. The identity
+//! belongs in its own NVS partition — the espino tables call it
+//! `identity` — opened with [`EspNvsKv::open_custom`] /
+//! [`EspNvsKv::open_custom_unchecked`]; the default-partition constructors
+//! stay for values that are the owner's.
 
-use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs, NvsDefault};
+use esp_idf_svc::nvs::{
+    EspCustomNvsPartition, EspDefaultNvsPartition, EspNvs, EspNvsPartition, NvsCustom, NvsDefault,
+    NvsPartitionId,
+};
 use esp_idf_svc::sys::EspError;
 use rusty_esp_mid_core::esp_core::error::{Error, Result};
 use rusty_esp_mid_core::esp_core::hal::{Kv, check_key};
@@ -45,13 +57,17 @@ pub const fn protection() -> Protection {
     }
 }
 
-/// An NVS namespace as a [`Kv`].
-pub struct EspNvsKv {
-    nvs: EspNvs<NvsDefault>,
+/// The label of the partition a device's identity lives in, as the espino
+/// tables spell it. Never the owner's `nvs`.
+pub const IDENTITY_PARTITION: &str = "identity";
+
+/// An NVS namespace as a [`Kv`], on the default partition or a named one.
+pub struct EspNvsKv<T: NvsPartitionId = NvsDefault> {
+    nvs: EspNvs<T>,
     protection: Protection,
 }
 
-impl core::fmt::Debug for EspNvsKv {
+impl<T: NvsPartitionId> core::fmt::Debug for EspNvsKv<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("EspNvsKv")
             .field("protection", &self.protection)
@@ -69,21 +85,24 @@ fn map(e: EspError) -> Error {
     }
 }
 
-impl EspNvsKv {
-    /// Open `namespace` on the default NVS partition for secrets. Refuses a
-    /// plaintext partition with `Err(Denied)` unless built with
-    /// `allow-insecure-dev`.
-    pub fn open(partition: EspDefaultNvsPartition, namespace: &str) -> Result<Self> {
-        let protection = protection();
-        if protection == Protection::Plaintext && !cfg!(feature = "allow-insecure-dev") {
-            return Err(Error::Denied);
-        }
-        Self::open_unchecked(partition, namespace)
+fn refuse_plaintext() -> Result<()> {
+    if protection() == Protection::Plaintext && !cfg!(feature = "allow-insecure-dev") {
+        return Err(Error::Denied);
+    }
+    Ok(())
+}
+
+impl<T: NvsPartitionId> EspNvsKv<T> {
+    /// Open `namespace` on `partition` for secrets. Refuses a plaintext
+    /// partition with `Err(Denied)` unless built with `allow-insecure-dev`.
+    pub fn open_in(partition: EspNvsPartition<T>, namespace: &str) -> Result<Self> {
+        refuse_plaintext()?;
+        Self::open_unchecked_in(partition, namespace)
     }
 
-    /// Open `namespace` for values that are **not** secrets (counters,
-    /// settings); no protection check.
-    pub fn open_unchecked(partition: EspDefaultNvsPartition, namespace: &str) -> Result<Self> {
+    /// Open `namespace` on `partition` with no protection check — for values
+    /// that are not secrets, or for a development board that says so.
+    pub fn open_unchecked_in(partition: EspNvsPartition<T>, namespace: &str) -> Result<Self> {
         let nvs = EspNvs::new(partition, namespace, true).map_err(map)?;
         Ok(EspNvsKv {
             nvs,
@@ -98,7 +117,40 @@ impl EspNvsKv {
     }
 }
 
-impl Kv for EspNvsKv {
+impl EspNvsKv<NvsDefault> {
+    /// Open `namespace` on the default `nvs` partition for secrets. Refuses a
+    /// plaintext partition with `Err(Denied)` unless built with
+    /// `allow-insecure-dev`.
+    pub fn open(partition: EspDefaultNvsPartition, namespace: &str) -> Result<Self> {
+        Self::open_in(partition, namespace)
+    }
+
+    /// Open `namespace` on the default partition for values that are **not**
+    /// secrets (counters, settings); no protection check.
+    pub fn open_unchecked(partition: EspDefaultNvsPartition, namespace: &str) -> Result<Self> {
+        Self::open_unchecked_in(partition, namespace)
+    }
+}
+
+impl EspNvsKv<NvsCustom> {
+    /// Open `namespace` on the partition labelled `label` for secrets —
+    /// [`IDENTITY_PARTITION`] for the device key. Initialises the partition
+    /// on first use. Refuses a plaintext partition unless built with
+    /// `allow-insecure-dev`; `Err(Corrupt)` when the table has no such
+    /// partition.
+    pub fn open_custom(label: &str, namespace: &str) -> Result<Self> {
+        refuse_plaintext()?;
+        Self::open_custom_unchecked(label, namespace)
+    }
+
+    /// [`Self::open_custom`] without the protection check.
+    pub fn open_custom_unchecked(label: &str, namespace: &str) -> Result<Self> {
+        let partition = EspCustomNvsPartition::take(label).map_err(map)?;
+        Self::open_unchecked_in(partition, namespace)
+    }
+}
+
+impl<T: NvsPartitionId> Kv for EspNvsKv<T> {
     fn get(&self, key: &str, out: &mut [u8]) -> Result<Option<usize>> {
         check_key(key)?;
         let Some(len) = self.nvs.blob_len(key).map_err(map)? else {

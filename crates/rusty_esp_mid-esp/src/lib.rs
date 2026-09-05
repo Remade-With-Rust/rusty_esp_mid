@@ -50,6 +50,6 @@ pub mod idf {
     //! Track A backends over esp-idf-svc 0.52.
     pub mod nvs;
     pub mod rng;
-    pub use nvs::{EspNvsKv, Protection};
+    pub use nvs::{EspNvsKv, IDENTITY_PARTITION, Protection};
     pub use rng::EspRng;
 }

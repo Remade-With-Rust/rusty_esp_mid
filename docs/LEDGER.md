@@ -51,3 +51,22 @@ names the parser and prints the input.
 | covered | result |
 |---|---|
 | `Adoption::decode` + `verify_signature`, `OwnerPin::decode` (20 000), `Did::parse` / `parse_multibase`, `Cap::parse` (30 000 strings), `kms::json::{NonceEnvelope, SignedAssertion}::from_json` (20 000 mutated JSON documents) | no finding |
+
+## The key store over any NVS partition (2026-09-05)
+
+`EspNvsKv` is generic over the partition (`EspNvsKv<T: NvsPartitionId =
+NvsDefault>`): `open` / `open_unchecked` keep their shape on the default
+`nvs`, `open_in` / `open_unchecked_in` take any `EspNvsPartition<T>`, and
+`open_custom` / `open_custom_unchecked(label, ns)` take a named partition
+and initialise it — `IDENTITY_PARTITION` (`"identity"`) is the one the
+espino tables give the device key. Why: on 2026-09-05 an ESP32-CAM minted a
+new DID at every rewrite of the owner's `nvs`, because the key lived there.
+
+| gate | result |
+|---|---|
+| host workspace (`cargo check`, fmt) | clean; the `esp-idf` module compiles only inside a firmware |
+| the espino-generated C5 firmware, which opens `identity` through this crate | builds; on the board the DID was **identical** across a settings rewrite and a full reflash (`did:mata:fadpNPvVBiWW…`) — the first half of the **M1** row, measured (espino ledger) |
+
+The encryption check is unchanged: `open_custom` refuses a plaintext
+partition unless `allow-insecure-dev`, which the development boards run with
+and the ledger says so.
