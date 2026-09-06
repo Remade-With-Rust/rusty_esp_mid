@@ -1,0 +1,49 @@
+# M1 on real silicon: what a P-256 signature costs an ESP32-S3, and what the
+# `alloc` rung adds to a firmware's size. Both are numbers only a chip and a
+# chip toolchain can give.
+#
+# The same binary is built twice — with `mid-core` at its core-only rung and
+# again with `alloc` — and the difference in app bytes is the rung's price.
+#
+# Track B (esp-hal, no ESP-IDF), Seeed XIAO ESP32-S3 Sense. A separate cargo
+# project: Xtensa target, the esp toolchain, build-std.
+
+[package]
+name = "xiao-s3-keys"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[[bin]]
+name = "xiao-s3-keys"
+harness = false
+
+[features]
+default = []
+# The rung under measurement: JSON shapes and owned DID strings. Off in the
+# baseline build, on in the second, and the app size between them is the row.
+alloc-rung = ["rusty_esp_mid-core/alloc"]
+
+[dependencies]
+esp-hal = { version = "=1.2.0", features = ["esp32s3"] }
+esp-alloc = { version = "=0.11.0", features = ["esp32s3"] }
+esp-bootloader-esp-idf = { version = "=0.6.0", features = ["esp32s3"] }
+esp-println = { version = "=0.18.0", features = ["esp32s3"] }
+esp-backtrace = { version = "=0.20.0", features = ["esp32s3", "panic-handler", "println"] }
+# The device key, its signature and its verifier, at the core-only rung.
+rusty_esp_mid-core = { path = "../../crates/rusty_esp_mid-core", default-features = false }
+rusty_esp_core = { path = "../../../rusty_esp_core/crates/rusty_esp_core", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = "z"
+panic = "abort"
+
+[workspace]
