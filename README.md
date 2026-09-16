@@ -1,123 +1,122 @@
 # rusty_esp_mid
 
-[![license](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+[![Remade With Rust](https://img.shields.io/badge/Remade%20With-Rust-000?logo=rust&logoColor=fff)](https://github.com/remade-with-rust) [![By Mata Network](https://img.shields.io/badge/by-Mata%20Network-5b2be0)](https://www.mata.network) [![crates.io](https://img.shields.io/crates/v/rusty_esp_mid.svg)](https://crates.io/crates/rusty_esp_mid) [![docs.rs](https://docs.rs/rusty_esp_mid/badge.svg)](https://docs.rs/rusty_esp_mid) [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](https://github.com/Remade-With-Rust/rusty_esp_mid/blob/main/LICENSE-MIT)
 
-MATA mID on the chip. A Janus device is its own `did:mata`: a P-256 key
-generated on the device, whose compressed public key *is* the identifier. This
-package gives that identity everything it needs to be a first-class MATA node —
-signed assertions for the home computer's gateway, a self-issued sign-in token,
-a signed capability manifest, and **adoption**: the owner-signed grant that
-tells the device who it belongs to and who it may talk to.
+Identity for an ESP32: every device mints its own P-256 `did:mata` into a
+partition of its own, signs what it claims, and can be adopted by an owner it
+then recognises and a stranger cannot impersonate. Pure Rust, no C, no FFI,
+`no_std` by default.
 
-It replaces vendor provisioning, cloud claiming and commissioning with the
-identity model the MATA home computer already defines: *User ← Home Computer
-(anchor) ← Device; every device has its own `did:mata`.*
+* **The device owns its identity, and nothing can reach it.** The key is
+  generated on the part, written to a partition no settings rewrite and no
+  re-flash touches, and never leaves. One identity has now survived **six
+  whole-image reflashes, a re-provisioning, and three flashes from another
+  session**.
+* **Adoption that refuses the two attacks that matter.** An adoption record is
+  public the moment it is sent, so only the key named inside it may use it; and
+  a superseded record must be rejected or rotating an owner's key revokes
+  nothing. **Both refusals were measured on a chip**, at the first attempt.
+* **Agreement with the wider MATA stack, byte for byte.** Signatures equal the
+  reference signer for the same key; a device-signed assertion verifies in the
+  reference verifier and a replay is refused; the capability check agrees with
+  the reference implementation on **144 of 144 cases**.
+* **Low-s enforced, everywhere.** A signature that is malleable is refused
+  rather than accepted and normalised.
 
-Part of **Janus**, the Remade-With-Rust programme that rebuilds the Espressif
-ESP32 and Arduino application portfolio in memory-safe Rust.
+## What has run on hardware
 
-- This package's plan: [docs/plans/rusty_esp_mid.md](docs/plans/rusty_esp_mid.md)
-- Numbers: [docs/LEDGER.md](docs/LEDGER.md)
-- The family plan: Janus `docs/plans/janus-mission.md` (umbrella repo)
+| what | measured |
+|---|---|
+| identity across reflashes | one `did:mata` held through **six whole-image reflashes**, a re-provisioning and three foreign flashes |
+| a signature | **95 ms** at full clock |
+| a verification | **151 ms** — **1.6× a signature**, and 100 of 100 succeeded |
+| the convenience layer | **9,104 bytes** of flash, about 1% of the time of a signed assertion |
+| adoption on the chip | accepted; a stranger presenting the owner's own record **refused**; an older roster version **refused**; the owner then read private telemetry |
 
-**Claims discipline:** every number in this README is in the ledger with the
-run that produced it. Nothing here has run on a chip yet.
+Both timings carry a design consequence no host could have suggested. A node
+cannot sign once per reading at ten readings a second, because the signature is
+most of that budget. And a mesh where every peer checks every peer's message is
+bounded by the **verification**, not the signature, because checking costs more
+than signing.
 
-## Status
+Two checks make those figures trustworthy rather than merely printed. Measured
+again at a third of the clock, the cycle counts agree within 8%, which is what
+a real computation looks like and a mis-scaled timer does not. Across three
+separate flash-and-boot cycles the floor moved by less than a fifth of one
+per cent.
 
-**M0 shipped on the host (2026-09-01); M1/M2 host halves done in J3** — the
-Track A NVS key store with its encryption check and the TRNG seam are written
-(`rusty_esp_mid-esp`), and adoption over the mesh is proven on the host in
-`rusty_esp_iroh` (owner adopts, stranger denied, rotation backwards refused).
+**The first attempt measured nothing, and said so loudly:** building with the
+convenience layer on and off produced two byte-identical files, because the
+layer was enabled and never called, so the linker deleted it. A capability you
+do not exercise costs nothing and proves nothing.
 
-**M0 detail.** The core is complete for what a
-device does with its identity, and it is gated against the real `mid`
-crates: bytes this crate emits are accepted by `kms-verifier` and
-`mid-verify`, and where the format is deterministic they are identical to
-`mid`'s own output (signer, genesis roster, envelope JSON). 28 unit tests and
-7 oracle tests pass; the core compiles for riscv32 bare metal with and
-without `alloc`.
+Every number, with the run that produced it:
+[`docs/LEDGER.md`](https://github.com/Remade-With-Rust/rusty_esp_mid/blob/main/docs/LEDGER.md).
 
-Not yet: the `-esp` backends (encrypted NVS, TRNG, eFuse-wrapped key,
-secure element) — that is M1 and needs a board.
-
-**M5 (2026-09-02):** the mID wire types and canonical bytes now come from
-`mid-types`, a `no_std` leaf carved out of `mid-issuer` on an upstream
-branch (`no-std-types`, with `mid-verify` made `no_std` over it); this core
-keeps only what a device does with them: sign a genesis roster, issue its
-own token, sign its manifest. The oracle tests that compare bytes with
-`mid-issuer` and verify with `mid-verify` still pass (35 tests).
-
-**The signer seam (2026-09-02, evening):** `DeviceSigner` comes from upstream
-`mid-signer` now (PR #3), re-exported here; the byte-for-byte copy this crate
-carried is gone, and the same trait serves the software key, the `-esp` NVS
-key and, when it comes, a secure element.
-
-**M4's host half (2026-09-02):** the verifier audit. Every ECDSA verifier in
-the family (adoption, manifest, maker, iroh assertion, binding, OTA) routes
-through `verify_prehash`, which rejects the high-s twin of a signature; the
-signal link has no signature to malleate; upstream `mid-verify` accepts the
-twin today, and an oracle test pins that so a change either way is noticed.
-The table is in the plan.
-
-## What is in the core
-
-| Module | What | Interoperates with |
-|---|---|---|
-| `did` | `Did`: `did:mata:<base58btc(33-byte SEC1)>`, encode and parse without `alloc` | `mid-verify` |
-| `key` | `DeviceKey`: generate from the TRNG seam, persist through the `Kv` seam, ECDH for `rusty_esp_signal` | |
-| `signer` | `DeviceSigner`: byte-for-byte the trait `mid`'s `kms-client` defines; `verify_prehash` with the low-s reject | `kms-client` |
-| `kms` | the `NonceEnvelope` canonical form over borrowed fields and the `SignedAssertion` a gateway verifies | `kms-types`, `kms-verifier` |
-| `jws`, `roster`, `token` | JWS ES256, the self-signed genesis roster, the self-issued mID token | `mid-issuer`, `mid-verify` |
-| `cap` | `component:action@scope` matching | `mata-cap` |
-| `adoption` | the **Adoption** grant: owner key pinned on first use (TOFU), rehome by the pinned owner, revocation by roster version; borrowed decode, no `alloc` | Janus-defined |
-| `nonce` | a fixed-capacity single-use nonce window | |
-| `manifest` | signing the `rusty_esp_core` capability manifest; the maker attestation | `rusty_esp_core` |
+## Using it
 
 ```rust
 use rusty_esp_mid::prelude::*;
 
-// boot: the DID is stable for as long as the Kv partition survives
-let key = DeviceKey::load_or_generate(&mut nvs, &mut trng, "cam-1")?;
-let did = key.did();                       // did:mata:…
+// Minted on the part, into a partition a re-flash does not touch.
+let identity = NodeIdentity::load_or_create(&mut kv, &mut rng, "janus")?;
+println!("{}", identity.did_string());
 
-// a gateway challenge arrives as JSON; sign it
-let env = rusty_esp_mid::kms::json::NonceEnvelope::from_json(&challenge)?;
-let assertion = env.sign(&key)?.to_json();
-
-// an owner adopts the device; pin them
-let adoption = Adoption::decode(&bytes)?;
-let pin = adoption.accept(&did.to_did_string(), stored_pin.as_ref(), wall_clock)?;
+// What the owner presents; the device checks the caller IS that owner.
+let fields = AdoptionFields { device_did, owner_did, owner_genesis_pubkey, .. };
+let n = fields.sign_into(&owner_key, &mut buf)?;
 ```
 
-## Sizes that shaped the design
+## Wire sizes
 
-| Token | Bytes |
+| what | bytes |
 |---|---|
-| a device's self-issued mID token (1 verification method) | 1 511 |
-| an owner's token, 8 devices | 4 562 |
-| an owner's token, 64 devices (the roster cap) | 23 472 |
-| an `Adoption` with two capabilities | ≈ 300 |
+| a device's self-issued token | 1,511 |
+| an owner with 8 devices | 4,562 |
+| an owner at the 64-device roster cap | 23,472 |
+| an adoption envelope, two capabilities | about 300 |
+| the owner pin a device stores | 37 |
 
-An owner token never crosses ESP-NOW or LoRa. Adoption does.
+## Two tracks
 
-## Layout
+| track | what it is | this crate |
+|---|---|---|
+| **A** | `std` on ESP-IDF — the entropy and key-value backends | `rusty_esp_mid-esp --features esp-idf` |
+| **B** | `no_std` on `esp-hal` — the whole protocol | `rusty_esp_mid-core`, default |
 
-```text
-crates/rusty_esp_mid          facade
-crates/rusty_esp_mid-core     no_std + alloc; forbid(unsafe); the identity core
-crates/rusty_esp_mid-esp      the WRAP crate: `esp-hal` | `esp-idf` backends (M1)
-docs/plans/rusty_esp_mid.md   the plan · docs/LEDGER.md the numbers
-```
+## Part of Janus
 
-## Build
+**Janus** rebuilds the Espressif ESP32 and Arduino application portfolio as
+independent, memory-safe Rust packages — so a hardware maker can ship a device
+that the [MATA](https://www.mata.network) home computer discovers, catalogs honestly, adopts
+under its own identity, and pays for. Ten packages, three layers, and the
+dependency direction never reverses.
 
-```sh
-cargo test --workspace                                   # host, incl. the oracle tests against mid/kms
-cargo check -p rusty_esp_mid-core --no-default-features --target riscv32imac-unknown-none-elf
-cargo check -p rusty_esp_mid-core --no-default-features --features alloc --target riscv32imac-unknown-none-elf
-```
+| layer | packages |
+|---|---|
+| **0 — the vocabulary** | [`rusty_esp_core`](https://crates.io/crates/rusty_esp_core) · [`rusty_esp_dsp`](https://crates.io/crates/rusty_esp_dsp) |
+| **1 — the functions** | [`rusty_esp_image`](https://crates.io/crates/rusty_esp_image) · [`rusty_esp_video`](https://crates.io/crates/rusty_esp_video) · [`rusty_esp_audio`](https://crates.io/crates/rusty_esp_audio) · [`rusty_esp_signal`](https://crates.io/crates/rusty_esp_signal) · [`rusty_esp_mid`](https://crates.io/crates/rusty_esp_mid) · [`rusty_esp_iroh`](https://crates.io/crates/rusty_esp_iroh) |
+| **2 — the surfaces** | [`rusty_esp_arduino`](https://crates.io/crates/rusty_esp_arduino) — the sketch facade · [`espino`](https://crates.io/crates/espino) — the maker's CLI |
+
+Every package is host-verified against an external oracle and keeps a ledger
+in which no number appears without the run that produced it. **Five of seven
+device profiles have now run their kill tests on real silicon**, three of them
+over a Wi-Fi network the board hosts itself.
+
+Also check out the rest of [Remade With Rust](https://github.com/remade-with-rust) — including
+[`rusty_alloc`](https://crates.io/crates/rusty_alloc), the pure-Rust rebuild of
+mimalloc that these firmwares run on, and
+[`rusty_jpeg`](https://crates.io/crates/rusty_jpeg), the JPEG engine behind the
+camera path — and our sister project
+[remade_ffmpeg_rs](https://github.com/Remade-With-Rust/remade_ffmpeg_rs), a ground-up Rust rebuild of FFmpeg.
+
+## About Mata Network
+
+[Mata Network](https://www.mata.network) builds sovereign, self-hostable infrastructure.
+**Remade With Rust** is our open-source home for the permissively-licensed
+building blocks that work depends on.
 
 ## License
 
-MIT OR Apache-2.0, at your option.
+MIT OR Apache-2.0, at your option. See [LICENSE-MIT](https://github.com/Remade-With-Rust/rusty_esp_mid/blob/main/LICENSE-MIT)
+and [LICENSE-APACHE](https://github.com/Remade-With-Rust/rusty_esp_mid/blob/main/LICENSE-APACHE).
