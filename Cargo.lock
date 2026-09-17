@@ -712,7 +712,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1730,7 +1730,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1917,7 +1917,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2005,6 +2005,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "rusty_json_turbo"
+version = "0.2.0"
+source = "git+https://github.com/Remade-With-Rust/rusty_json_turbo?branch=master#77a58ed4c8e281f66e2d6b3a5b9ccd979ebec05b"
+dependencies = [
+ "itoa",
+ "memchr",
+ "rusty_json_turbo-accel",
+ "serde",
+ "serde_core",
+ "zmij",
+]
+
+[[package]]
+name = "rusty_json_turbo-accel"
+version = "0.2.0"
+source = "git+https://github.com/Remade-With-Rust/rusty_json_turbo?branch=master#77a58ed4c8e281f66e2d6b3a5b9ccd979ebec05b"
+
+[[package]]
 name = "ryu"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2076,14 +2094,9 @@ dependencies = [
 [[package]]
 name = "serde_json"
 version = "1.0.151"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
+source = "git+https://github.com/Remade-With-Rust/rusty_json_turbo?branch=master#77a58ed4c8e281f66e2d6b3a5b9ccd979ebec05b"
 dependencies = [
- "itoa",
- "memchr",
- "serde",
- "serde_core",
- "zmij",
+ "rusty_json_turbo",
 ]
 
 [[package]]
@@ -2281,7 +2294,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2675,7 +2688,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2931,3 +2944,7 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+
+[[patch.unused]]
+name = "rusty_esp_alloc"
+version = "0.1.0"
