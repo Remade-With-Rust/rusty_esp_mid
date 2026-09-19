@@ -151,3 +151,30 @@ With that call in place the rung also reports its runtime cost:
 about 1 ms, roughly 1 % of the JWS**. On this chip a signed assertion costs
 what its signature costs, and the rung's convenience is close to free in
 time — the price is the 9 104 bytes above.
+
+## M2 status: identity and adoption proven on silicon; encrypted-at-rest gated on an eFuse burn (2026-09-18)
+
+What is proven on the XIAO ESP32-S3 (via the C2 cell and Run 5, this session):
+- the device **mints its own** `did:mata:29qcqKb5kMT529GSNgfcUU2gSf4bpd7EWUDEj2Mq7cb9J`
+  from a key created on first boot and **stable across reboots and reflashes**
+  (the `identity` NVS partition survives a firmware reflash by design);
+- it **signs its capability manifest on-chip** (the sidecar serves the manifest
+  and its signature; a home computer verifies it);
+- **adoption on silicon**: the owner pins the device with a signed grant, a
+  stranger with the same record is refused, an older roster version is refused,
+  and the device reports `pair_state=paired` in its own sidecar status.
+
+On the host: `rusty_esp_mid-core` 28 + `-esp` 3 + integration 8 = **39 tests
+pass** — the roster chain, token, capability and DeviceSigner logic.
+
+**The one gap, and it is honestly gated.** `Protection::Encrypted` is returned
+only when the firmware was built with **both** `CONFIG_NVS_ENCRYPTION` and
+`CONFIG_SECURE_FLASH_ENC_ENABLED`; without them `protection()` is `Plaintext`
+and `EspNvsKv::open` **refuses** the identity partition unless the
+`allow-insecure-dev` feature opts in. The current firmware is Plaintext (flash
+encryption is off), and the crate says so rather than pretending. Proving
+**encrypted at rest** requires turning flash encryption on, which burns eFuses
+— it needs a **sacrificial board**, tracked in `docs/plans/ap-remaking.md`. The
+mechanism (the cfg gates, the refusal) is correct and host-checkable today; the
+eFuse runtime truth is the only thing a board in hand cannot show without
+committing that board permanently.
