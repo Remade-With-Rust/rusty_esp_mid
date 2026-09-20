@@ -73,6 +73,16 @@ fn main() -> ! {
 
     let mhz = esp_hal::clock::cpu_clock().as_hz() as u64 / 1_000_000;
     println!("== JANUS KEYS xiao-s3 ==");
+    // Which kernel this binary is actually on. A capability you cannot
+    // detect is one you must not claim, and a kernel swap that cannot be
+    // read off the serial log is one no ledger row can rest on.
+    #[cfg(feature = "kairos")]
+    println!(
+        "KEY kernel={}",
+        rusty_esp_rtos::port_name().unwrap_or("none")
+    );
+    #[cfg(not(feature = "kairos"))]
+    println!("KEY kernel=bare-metal");
     println!(
         "KEY cpu_mhz={mhz} iterations={ITERATIONS} rung={}",
         if cfg!(feature = "alloc-rung") {

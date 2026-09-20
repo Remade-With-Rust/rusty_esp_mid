@@ -639,7 +639,7 @@ dependencies = [
  "heapless 0.9.3",
  "riscv",
  "semihosting",
- "xtensa-lx",
+ "xtensa-lx 0.13.0",
 ]
 
 [[package]]
@@ -729,7 +729,7 @@ dependencies = [
  "static_cell",
  "strum",
  "ufmt-write",
- "xtensa-lx",
+ "xtensa-lx 0.13.0",
  "xtensa-lx-rt",
 ]
 
@@ -816,7 +816,7 @@ dependencies = [
  "embassy-sync 0.8.0",
  "esp-metadata-generated",
  "riscv",
- "xtensa-lx",
+ "xtensa-lx 0.13.0",
 ]
 
 [[package]]
@@ -1183,7 +1183,8 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 [[package]]
 name = "mid-signer"
 version = "0.2.0"
-source = "git+https://github.com/Remade-With-Rust/mid?branch=device-signer-leaf#6d42433e5b291ac2c6a03f9bed8109622313d6cd"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9dff3a2a3c9df2c352021b7863c6b2410ca16aad84ff3bc2b04c4cb9c79506e"
 dependencies = [
  "p256",
 ]
@@ -1191,7 +1192,8 @@ dependencies = [
 [[package]]
 name = "mid-types"
 version = "0.2.0"
-source = "git+https://github.com/Remade-With-Rust/mid?branch=device-signer-leaf#6d42433e5b291ac2c6a03f9bed8109622313d6cd"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "470decca1c1337708c5212f9df97ff8aaa97a147cc38a506c53f46712e7e9e02"
 dependencies = [
  "serde",
  "serde_json",
@@ -1422,7 +1424,7 @@ checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
 name = "rusty_esp_core"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "rusty_esp_mid-core"
@@ -1437,6 +1439,41 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+]
+
+[[package]]
+name = "rusty_esp_rtos"
+version = "0.1.1"
+dependencies = [
+ "rusty_rtos_core",
+ "rusty_rtos_port-riscv",
+ "rusty_rtos_port-xtensa",
+]
+
+[[package]]
+name = "rusty_rtos_core"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e3998d3323106878db36fbc8b565cd8eb572609118fa9a04e3e14c23ff80d80"
+
+[[package]]
+name = "rusty_rtos_port-riscv"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23f2f4a09cd2d9ea0d43253efa553034cbfeec31d6a7fdd2a0f8bc83b726e60d"
+dependencies = [
+ "rusty_rtos_core",
+]
+
+[[package]]
+name = "rusty_rtos_port-xtensa"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad0a37feb9ce9a0392ef3db8380d0e9d95785d8ecb66afd254f4e0d8787efb4b"
+dependencies = [
+ "rusty_rtos_core",
+ "xtensa-lx 0.12.0",
+ "xtensa-lx-rt",
 ]
 
 [[package]]
@@ -1831,6 +1868,16 @@ dependencies = [
  "esp-println",
  "rusty_esp_core",
  "rusty_esp_mid-core",
+ "rusty_esp_rtos",
+]
+
+[[package]]
+name = "xtensa-lx"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a564fffeb3cd773a524e8d8a5c66ca5e9739ea7450e36a3e6a54dd31f1e652f"
+dependencies = [
+ "critical-section",
 ]
 
 [[package]]
@@ -1849,7 +1896,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07933551193a68b5b0a94a7c428e9626adb559661e0f4b048ac5ec1fa4bed334"
 dependencies = [
  "document-features",
- "xtensa-lx",
+ "xtensa-lx 0.13.0",
  "xtensa-lx-rt-proc-macros",
 ]
 
@@ -1875,3 +1922,7 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+
+[[patch.unused]]
+name = "rusty_esp_alloc"
+version = "0.1.1"

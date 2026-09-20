@@ -25,6 +25,17 @@ default = []
 # The rung under measurement: JSON shapes and owned DID strings. Off in the
 # baseline build, on in the second, and the app size between them is the row.
 alloc-rung = ["rusty_esp_mid-core/alloc"]
+# K5, the Xtensa half: put the Kairos kernel under this firmware.
+#
+# ADDITIVE, and that is the point. This firmware is a bare-metal main loop
+# with no scheduler and no radio, so a kernel under it is a smoke test of the
+# port rather than a migration -- and it needs neither
+# `esp-radio-rtos-driver` nor a second board, which is why this half of K5
+# can proceed while S1 is still blocked on hardware.
+#
+# OFF by default so the baseline build is byte-for-byte the one the recorded
+# sign/verify numbers came from.
+kairos = ["dep:rusty_esp_rtos"]
 
 [dependencies]
 esp-hal = { version = "=1.2.0", features = ["esp32s3"] }
@@ -35,6 +46,9 @@ esp-backtrace = { version = "=0.20.0", features = ["esp32s3", "panic-handler", "
 # The device key, its signature and its verifier, at the core-only rung.
 rusty_esp_mid-core = { path = "../../crates/rusty_esp_mid-core", default-features = false }
 rusty_esp_core = { path = "../../../rusty_esp_core/crates/rusty_esp_core", default-features = false }
+# The RTOS seam, never `rusty_rtos_port-*` directly. See the seam's README
+# for the `xtensa-lx-rt` links-crate joint this firmware already satisfies.
+rusty_esp_rtos = { path = "../../../rusty_esp_core/crates/rusty_esp_rtos", default-features = false, features = ["port"], optional = true }
 
 [profile.release]
 opt-level = 3
