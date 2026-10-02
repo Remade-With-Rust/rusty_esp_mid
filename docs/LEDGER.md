@@ -340,3 +340,64 @@ At the cells' 240 MHz that is about 160 ms a boot. espino's camera page
 uses both. The `tests/oracle.rs` failure (`InMemoryDeviceSigner` has no
 `sign_prehash`) predates this: the lock file carries two `mid-signer`
 packages. dsp's ledger, "Round 2", has the method, every run and the refuted shapes.
+
+## Round 3: p256 vendored, its arithmetic rewritten for a 32-bit core (2026-10-01)
+
+`vendor/p256` (0.13.2) and `vendor/primeorder` (0.13.6) are RustCrypto's
+crates with the changes below, each marked "Janus vendored (round 3)" where
+it is made. A consumer takes them with `[patch.crates-io]` (the probe, and
+espino's generated projects when the checkout has them). The representation,
+the API and every value are upstream's: a fully reduced field element and an
+inverse are unique, and every change is held to the upstream code it
+replaces (kept in-tree as a test `reference` or a doc-hidden function).
+
+| change | file | measured on the XIAO, 80 MHz | before | after |
+|---|---|---|---:|---:|
+| the base field on 32-bit limbs: a CIOS multiply using P-256's shape (`-p^-1 mod 2^32` is 1; the modulus words are all-ones, zero or one, so the reduction has no multiply), an SOS square, 32-bit carry chains. Upstream's 32-bit file was its 64-bit code emulating 128-bit products (`fe_mul` 2,864 instructions) | `field/field32.rs` | `fe_mul` | 38.1 us | 29.0 |
+| the scalar field's Barrett reduction with b = 2^32 | `scalar/scalar32.rs` | a scalar multiply (same build, against p256 0.13.2's own copied into the probe) | 77.9 us | 58.0 |
+| a fixed-base comb for the generator: signed 5-bit digits, 52 rows of 16 multiples (`gen_gtable.py`, exact integers), constant-time lookups, mixed additions, no doublings; `mul` takes it when the point is the generator constant, so `PublicKey::from_secret_scalar` gains too (primeorder's `PrimeCurveParams::GENERATOR_TABLE`, default `None`) | `generator_table.rs`, primeorder `projective.rs` | key derivation / sign | 160.1 / 189.9 ms | 38.6 / 68.1 (the 4-bit comb); signed 5-bit, later: 23.5 / 29.5 -> **19.4 / 25.4** |
+| the field multiply in Xtensa asm, every carry by `saltu` (bytes: LLVM's assembler does not know it), `#[inline(never)]`; picked at run time by `const_eval_select`, so constants and every other target keep the Rust | `field/field32.rs` | `fe_mul` / `fe_square` | 29.0 / 29.3 us | 19.4 / 19.5 |
+| constant-time safegcd inversion (libsecp256k1's `modinv32`, MIT, ported as a `const fn`) for both fields; Fermat kept as `invert_fermat` | `safegcd.rs` | field / scalar inverse | 5.07 / 24.47 ms | 0.71 / 0.70 |
+
+All together, from upstream p256 to this crate, on the probe: the link's
+handshake (both sides) **1,404 -> 526 ms**; a key derived 221.2 ->
+19.4 ms; an ECDSA signature 260.1 -> 25.4 ms. At the
+cells' 240 MHz, about a third of each.
+
+**Held to upstream.** Host: proptests of every field and scalar operation
+against the upstream code kept as `reference` (i686, x86_64); the comb
+against the generic multiply (`tests/generator_table.rs`, every multiple in
+four rows, edges, a proptest); safegcd against Fermat (2,000 per field in
+the unit tests; 200,000 per field on both word sizes in
+`tests/safegcd_bulk.rs`, `--ignored`). Chip: the asm against the Rust on
+10,000 random pairs; the handshake's transcript, the key and the signature
+checksums unchanged in every build. The two `tests/pkcs8.rs` failures on
+Windows are upstream's: the PEM encoder writes CRLF there.
+
+**The seven-times-slower build.** The asm multiply inlined into every caller
+(a thousand instructions with thirteen registers pinned, thirteen of them in
+a point doubling) overflowed the instruction cache: the handshake took 5.3 s
+instead of 0.56. `#[inline(never)]` is why it is not.
+
+**Refuted**: a product-scanning (FIPS) multiply and a flattened CIOS (34.5
+and 34.9 us against the rolled CIOS's 29.0); crypto-bigint's constant-time
+binary GCD for the base field (5.65 ms against Fermat's 5.07 once Fermat
+rode the asm multiply -- it did win 4.3x on the scalar, before safegcd);
+the field add and subtract in asm (`saltu` again: the add 4.17 -> 3.91 us,
+the subtract 2.98 -> 3.11, the handshake 0.7 % -- an add's cost is its
+call and its arrays, not its carries).
+
+**On the board's flash**: the generator table is 53 (52 x 16 x 64 bytes) KB of rodata.
+
+## Round 3 addendum: the asm multiply only where `saltu` exists (2026-10-02)
+
+Found while reading enc-ble (C6 is an ESP32): the asm multiply was gated on
+`target_arch = "xtensa"`, which takes in the ESP32's LX6 core. LX6 has no
+`saltu`: the ESP32 toolchain decodes the same bytes as `lsi`, a float load
+(the S2's and S3's decode them as `saltu`). An ESP32 cell built with the
+vendored p256 would have computed garbage. `vendor/p256/build.rs` now sets
+`janus_saltu` for `xtensa-esp32s2*` and `xtensa-esp32s3*` only, and the asm
+and its feature gates hang on that. Checked: the S3 probe still links
+`fe_mul_xtensa`; an `xtensa-esp32-none-elf` build of the crate has no such
+symbol; the host tests pass. No ESP32 image was built with the old gate (the
+only cell regenerated in round 3 is C14, an S3).

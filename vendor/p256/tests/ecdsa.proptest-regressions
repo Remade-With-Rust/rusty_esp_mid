@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc edc4c3b27d01cc84720bf57de35986721ade62e758a8e468a813ac9533b554ae # shrinks to sk = SigningKey { .. }
