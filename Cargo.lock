@@ -2367,7 +2367,7 @@ version = "0.1.1"
 
 [[package]]
 name = "rusty_esp_mid"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rusty_esp_mid-core",
  "rusty_esp_mid-esp",
@@ -2375,7 +2375,7 @@ dependencies = [
 
 [[package]]
 name = "rusty_esp_mid-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64",
  "bs58",
@@ -2398,7 +2398,7 @@ dependencies = [
 
 [[package]]
 name = "rusty_esp_mid-esp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "embuild",
  "esp-hal",
