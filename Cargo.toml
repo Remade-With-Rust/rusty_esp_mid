@@ -43,6 +43,9 @@ rusty_esp_core = { version = "0.1", git = "https://github.com/Remade-With-Rust/r
 # is for rusty_esp_signal's session keys. No `std` here: the core is no_std.
 p256 = { version = "0.13", default-features = false, features = ["ecdsa", "ecdh"] }
 sha2 = { version = "0.10", default-features = false }
+# The RFC 6979 signing primitive over a bare scalar (round 2, R7): the
+# version p256 0.13 already brings, with the parts `SigningKey` uses.
+ecdsa = { version = "0.16", default-features = false, features = ["hazmat", "rfc6979"] }
 bs58 = { version = "0.5", default-features = false }
 base64 = { version = "0.22", default-features = false }
 serde = { version = "1", default-features = false, features = ["derive"] }

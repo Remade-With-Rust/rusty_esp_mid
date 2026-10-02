@@ -41,9 +41,7 @@ pub const TRACK: Track = if cfg!(feature = "esp-hal") {
 };
 
 #[cfg(feature = "esp-hal")]
-pub mod hal {
-    //! Track B backends. Drivers land here with their esp-hal pin.
-}
+pub mod hal;
 
 #[cfg(feature = "esp-idf")]
 pub mod idf {

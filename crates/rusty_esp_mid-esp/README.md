@@ -2,7 +2,7 @@
 
 [![Remade With Rust](https://img.shields.io/badge/Remade%20With-Rust-000?logo=rust&logoColor=fff)](https://github.com/remade-with-rust) [![By Mata Network](https://img.shields.io/badge/by-Mata%20Network-5b2be0)](https://www.mata.network) [![crates.io](https://img.shields.io/crates/v/rusty_esp_mid-esp.svg)](https://crates.io/crates/rusty_esp_mid-esp) [![docs.rs](https://docs.rs/rusty_esp_mid-esp/badge.svg)](https://docs.rs/rusty_esp_mid-esp) [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](https://github.com/Remade-With-Rust/rusty_esp_mid/blob/main/LICENSE-MIT)
 
-The chip backends for the identity package: the device key's home in the chip's key-value partition behind the store seam, with the encryption check the plan demands, and the hardware entropy source behind the entropy seam.
+The chip backends for the identity package: the device key's home in the chip's key-value partition behind the store seam, with the encryption check the plan demands, and the hardware entropy source behind the entropy seam. On Track A (`esp-idf`) that is ESP-IDF's NVS and TRNG; on Track B (`esp-hal`) it is the same `identity` partition read and written by `rusty_esp_core::nvs` — Espressif's NVS format in pure Rust — over `esp-storage`, and `esp-hal`'s TRNG. A key minted on one track is read on the other.
 
 The entropy source is named in the code rather than assumed: without the analogue-backed path, the chip's generator is a pseudo-random register, and this crate refuses rather than pretending.
 

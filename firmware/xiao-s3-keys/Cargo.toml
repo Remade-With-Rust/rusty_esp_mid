@@ -21,7 +21,17 @@ name = "xiao-s3-keys"
 harness = false
 
 [features]
-default = []
+# X4 of the killing-C plan: the identity partition read (and, on a blank
+# board, written) through the Rust NVS module over esp-storage, then the
+# writer proved on the owner's `nvs` partition, before the sign/verify
+# bench. On by default: this is the firmware's shape now; the bench that
+# follows it is the same code as before.
+default = ["identity"]
+identity = ["dep:esp-storage", "dep:rusty_esp_mid-esp"]
+# The kill test's build: the writer put, get, replace and remove in a
+# namespace of its own on the owner's `nvs` partition. Off by default — a
+# firmware that writes that partition on every boot is not one to ship.
+nvs-proof = ["identity"]
 # The rung under measurement: JSON shapes and owned DID strings. Off in the
 # baseline build, on in the second, and the app size between them is the row.
 alloc-rung = ["rusty_esp_mid-core/alloc"]
@@ -43,8 +53,12 @@ esp-alloc = { version = "=0.11.0", features = ["esp32s3"] }
 esp-bootloader-esp-idf = { version = "=0.6.0", features = ["esp32s3"] }
 esp-println = { version = "=0.18.0", features = ["esp32s3"] }
 esp-backtrace = { version = "=0.20.0", features = ["esp32s3", "panic-handler", "println"] }
+# The SPI flash through the ROM's routines, in Rust: the identity partition's home.
+esp-storage = { version = "=0.10.0", features = ["esp32s3"], optional = true }
 # The device key, its signature and its verifier, at the core-only rung.
 rusty_esp_mid-core = { path = "../../crates/rusty_esp_mid-core", default-features = false }
+# Track B backends: the partition table, a partition as NVS flash, the TRNG.
+rusty_esp_mid-esp = { path = "../../crates/rusty_esp_mid-esp", default-features = false, features = ["esp-hal"], optional = true }
 rusty_esp_core = { path = "../../../rusty_esp_core/crates/rusty_esp_core", default-features = false }
 # The RTOS seam, never `rusty_rtos_port-*` directly. See the seam's README
 # for the `xtensa-lx-rt` links-crate joint this firmware already satisfies.

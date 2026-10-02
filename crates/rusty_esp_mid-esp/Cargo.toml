@@ -17,9 +17,11 @@ categories = ["embedded", "no-std", "cryptography"]
 default = []
 std = ["rusty_esp_mid-core/std"]
 alloc = ["rusty_esp_mid-core/alloc"]
-# Track B — bare metal: esp-hal + Embassy. The esp-hal / esp-storage
-# dependencies land behind this feature with the first driver.
-esp-hal = ["alloc"]
+# Track B — bare metal: `hal::{PartitionFlash, find_partition, EspHalRng}`
+# over esp-hal and esp-storage. The chip is chosen by the firmware
+# (`esp-storage/esp32s3` and the like); no `alloc` is needed for them, so
+# the core-only rung stays measurable underneath.
+esp-hal = ["dep:esp-hal", "dep:esp-storage"]
 # Track A — std on ESP-IDF via esp-idf-svc: `idf::{EspNvsKv, EspRng}`.
 esp-idf = ["std", "dep:esp-idf-svc"]
 # Development only: let `EspNvsKv::open` accept a plaintext NVS partition.
@@ -29,6 +31,10 @@ allow-insecure-dev = []
 [dependencies]
 rusty_esp_mid-core = { workspace = true }
 esp-idf-svc = { version = "0.52", optional = true }
+# Caret, not `=`: the firmware pins the companion set (esp-hal 1.2.0 /
+# esp-storage 0.10.0 today) and selects the chip.
+esp-hal = { version = "1.2", default-features = false, features = ["unstable"], optional = true }
+esp-storage = { version = "0.10", optional = true }
 
 [build-dependencies]
 # Re-emits esp-idf-sys's cfgs to this crate (build.rs); a no-op on the host.

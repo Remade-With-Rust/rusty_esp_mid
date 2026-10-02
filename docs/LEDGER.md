@@ -178,3 +178,165 @@ encryption is off), and the crate says so rather than pretending. Proving
 mechanism (the cfg gates, the refusal) is correct and host-checkable today; the
 eFuse runtime truth is the only thing a board in hand cannot show without
 committing that board permanently.
+
+## X0 of the killing-C plan: the C census — 2026-09-30
+
+`python tools/c-census.py build && python tools/c-census.py report --ledger` from the umbrella, so sibling crates are the checkouts beside this one: each firmware is linked `--release` with a linker map and `--emit-relocs`, and the two are read together. Every input section the linker kept is charged to the archive the map names for it, one owner per address; every FUNC and OBJECT symbol in the ELF to the archive whose section holds its address; and a mask-ROM routine counts when a kept relocation names it (a linker script defines every ROM symbol whether or not anything calls it). `image B` is code + data as flashed; bss is RAM only. `tools/c-census.py verify` is the gate: the bytes charged equal the bytes the ELF loads, and every symbol charged to a C archive is one `llvm-nm` finds defined in that archive; on an ESP-IDF build the image bytes of every archive also equal what Espressif's own `esp_idf_size` reports from the same map. Two limits: a string table the linker merged is shared by everything that contributed to it, so it is charged where the map puts it (GNU ld) or to the linker row (lld, which names no contributor); and with LTO the Rust side is one object, so its crates are not told apart. Where a firmware reads its network at compile time the build is given placeholders for all of it (`census` / `census-pass`, stream destinations in 192.0.2.0/24): a firmware given no destination compiles its networking out, and the census would measure an image nobody ships.
+
+**What it says.** No C archive is linked. The 6 bytes are `crti.o`, the two
+3-byte `.init`/`.fini` stubs the gcc driver adds to every bare-metal Xtensa
+link. The 13 mask-ROM routines are all called from Rust — memory
+copies, 64-bit division, the cache and clock setup `esp-hal` does at boot — so
+an image that links no C still runs ROM code it did not bring.
+
+### `xiao-s3-keys` — S3, Track B, `main@e153b46`
+
+| origin | objects | symbols | code B | data B | bss B |
+|---|---:|---:|---:|---:|---:|
+| Rust | 2 | 372 | 160,427 | 13,296 | 65,630 |
+| toolchain C runtime (libc, libgcc) | 1 | 2 | 6 | 0 | 0 |
+| linker (merged constants, padding, reservations) | 1 | 0 | 946 | 44 | 273,610 |
+
+**C in this image: 2 symbols, 6 B of 174,719 B (0.0%). The blob floor is 0 symbols in 0 archives.** The 2nd-stage bootloader that starts it is espflash 4.6.0's bundled `esp32s3-bootloader.bin`: 21,072 B of C outside this image.
+
+Mask-ROM routines called: 13 — 0 from C, 13 from Rust: `Cache_Resume_DCache`, `Cache_Suspend_DCache`, `__udivdi3`, `__umoddi3`, `esp_rom_regi2c_read`, `ets_delay_us`, `ets_update_cpu_frequency`, `memcpy`, `memset`, `rom_config_data_cache_mode`, `rom_config_instruction_cache_mode`, `rom_i2c_writeReg`, `rtc_get_reset_reason`.
+
+| C archive | origin | symbols | image B | bss B |
+|---|---|---:|---:|---:|
+| `crti.o` | toolchain | 2 | 6 | 0 |
+
+## X4 of the killing-C plan: identity on Track B — the DID a Track A firmware minted, read by Rust with no ESP-IDF under it (2026-09-30)
+
+### The NVS format, in the seam crate
+
+`rusty_esp_core::nvs`: Espressif's NVS partition format in pure Rust, on
+the core-only rung (no `alloc`; it compiles for `riscv32imac` with
+`--no-default-features`). A reader for every value type — primitives,
+strings, blobs assembled from their chunks, the old single-page blob —
+from every page in sequence order, with the page and entry CRCs and the
+data CRCs checked; a writer for blobs, creating namespaces as it needs
+them, erasing in place, keeping one page in reserve as NVS requires, and
+with no garbage collector (a page is never reclaimed; when the rest are
+full `put` says `BufferTooSmall`, and the module says why that is the
+right shape for an identity partition and the wrong one for a diary).
+Under it the `Flash` trait: aligned words in, aligned words out, page
+erase. Over it `NvsKv`: one namespace as the `Kv` seam — `get` any type,
+`put` a blob (what ESP-IDF's `nvs_set_blob` leaves in flash, so the
+tracks read each other), `remove`.
+
+Host, 9 tests, against images `espino-nvs` wrote — and `espino-nvs` is
+byte-identical to Espressif's `nvs_partition_gen.py`, which is what makes
+them an oracle: a provisioning image read back key for key (`name`,
+`wifi.ssid`, `wifi.psk`, `maker`, `blink_ms`, `fps`); the identity blob;
+a 5,000-byte blob spanning two pages beside two namespaces and three
+primitives. **The writer, given a blank 12 KB partition and the identity
+blob, produces `espino-nvs`'s image byte for byte.** Replace, remove,
+reopen, a blob larger than a page, the reserved page refusing the fourth
+blob with the first three still readable, a flipped bit read as
+`Corrupt` and not as a wrong key. Clippy `-D warnings`, fmt, the crate's
+37 + 3 tests, both bare-metal checks.
+
+### The Track B backends
+
+`rusty_esp_mid-esp::hal` (feature `esp-hal`, and no `alloc` with it, so
+the core-only rung underneath stays measurable): `PartitionFlash`, one
+partition of the chip's flash through `esp-storage`'s `read_nor` /
+`write_nor` / `erase` (four-byte words, 4 KB sectors, the ROM's SPI
+routines with the cache held off), bounds-checked; `find_partition`, the
+table at `0x8000` by label; `EspHalRng`, the TRNG behind `Rng`. Nothing
+identity-specific, as the wrap crate's rule says.
+
+### On the board
+
+`firmware/xiao-s3-keys` gained the identity pass (feature `identity`,
+on by default) ahead of its sign/verify bench: the partition table, the
+`identity` partition at `0x7fd000` (12 KB), `NvsKv` on the `janus`
+namespace, `DeviceKey::load` — and the key is minted and stored only on
+a board that has none. The writer's proof below is the kill test's build
+(`--features nvs-proof`): a firmware that writes the owner's partition on
+every boot is not one to ship, so the default build reads and stops. This
+board has an identity, and it printed:
+
+> `KEY identity=loaded did=did:mata:29qcqKb5kMT529GSNgfcUU2gSf4bpd7EWUDEj2Mq7cb9J us=78145`
+
+**The DID the Track A cell firmware minted through ESP-IDF's NVS on
+2026-09-18 and has held since (M2), read back by the Rust reader with no
+ESP-IDF in the image** — on three boots, with a full-image reflash between
+the second and the third (each of the three full-image flashes of the afternoon timed out once and went through on the retry; the merged image ends at
+`0x7fd000`, which is why the partition survives every reflash). The 78 ms
+is the P-256 public key derived from the stored secret, not the flash: the
+mint on the same boot costs 76.9. Before any of it, Espressif's
+`nvs_tool.py` on a dump of the partition, values withheld: namespace
+`janus`, two pages in use, CRC OK.
+
+The writer, proved on the owner's `nvs` partition (blank on this board;
+restored after): `put` 32 bytes 1.56 ms, `get` 0.66 ms (0.17 ms on the
+next boot), a 100-byte blob put, read, removed; boot 2 finds boot 1's
+blob. Then Espressif's tool on the dump: integrity OK, namespace `x4` at
+index 1, `blob` written (`blob_data`, span 2, chunk 0; `blob_index`,
+count 1, start 0), `big` written and erased — data and index both marked
+`Erased`. **Espressif's own parser reads what the Rust writer wrote,
+entry for entry.**
+
+The bench that follows it, beside M1's baseline (240 MHz, the same
+binary shape, three boots):
+
+| operation | M1 (2026-09-06) | X4, boot 1 / 2 / 3 |
+|---|---:|---:|
+| generate | 76,976 us | 76,902 / 76,901 / 76,903 |
+| sign, min / median | 94,936 / 94,943 us | 94,867 / 94,879 · 95,038 / 95,050 · 94,886 / 94,898 |
+| verify, min / median | 151,455 / 151,669 us | 151,482 / 151,797 · 151,523 / 151,845 · 151,582 / 151,840 |
+| `verify_ok` | 100/100 | 100/100 ×3 |
+| heap used | — | 0 (the identity pass allocates nothing) |
+
+Inside M1's 0.17 % noise floor on every row. Census of the default
+build (`tools/c-census.py`, `verify` closes): **205,731 B image, 6 B of C
+(`crti.o`), no archive** — 31.0 KB more image than the bench alone (the
+kill test's `nvs-proof` build is 10 KB more again), and 19 ROM routines
+called where it was 13: `esp-storage` reaches the flash through the mask
+ROM's SPI routines, which is what "ROM only" means for a partition on
+Track B.
+
+### Found on the way
+
+- A compressed full-image flash that times out (`FlashDeflData`, 27 s —
+  four of seven `espino flash` tries between 14:16 and 14:31 on this
+  bench, none of the three in the final run; the app-only `write-bin`
+  never) has already erased the `nvs` region: a boot after one found no
+  blob from the boot before. The script retries.
+- Every `espflash` operation ends in a reset into the firmware, and the
+  proof build's first act is to write `nvs` again — which is why the proof
+  is a feature and not the default. The final run flashes the default
+  build, boots it once (the DID, nothing written), erases the partition
+  and reads it back: **restored byte for byte**.
+- What this is not: encrypted at rest — unchanged from M2, and
+  `esp_hal::efuse::flash_encryption()` is the eFuse's truth a Track B
+  firmware can read; a garbage collector; a replace that keeps the old
+  value until the new one is indexed (the module documents the window,
+  which a once-written key never opens).
+
+## Round 2: the boot's two scalar multiplications, cached (2026-10-01)
+
+`DeviceKey` holds the secret scalar and the public key apart instead of a
+`p256::ecdsa::SigningKey`, which derives the public key when it is built.
+Signing is the RFC 6979 call `SigningKey` makes; host tests pin the DID and
+the signatures to `SigningKey`'s for 24 keys x 8 prehashes.
+
+- `load_cached` / `load_or_generate_cached` take the public key from
+  `mid.devpub` beside the secret when its HMAC under the secret holds;
+  otherwise they derive it and write the entry (best effort).
+- `sign_prehash_cached` and `manifest::sign_manifest_cached` remember a
+  signature under a name: deterministic ECDSA makes it the signature
+  signing would produce, byte for byte.
+
+| XIAO at 80 MHz (a test key, a RAM store) | ms |
+|---|---:|
+| `load` (derives the public key) | 222.7 |
+| `load_cached` | **3.5** |
+| `sign_prehash` | 264.8 |
+| `sign_prehash_cached`, an unchanged prehash | **0.52** |
+
+At the cells' 240 MHz that is about 160 ms a boot. espino's camera page
+uses both. The `tests/oracle.rs` failure (`InMemoryDeviceSigner` has no
+`sign_prehash`) predates this: the lock file carries two `mid-signer`
+packages. dsp's ledger, "Round 2", has the method, every run and the refuted shapes.

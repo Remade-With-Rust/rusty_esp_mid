@@ -86,7 +86,7 @@ let n = fields.sign_into(&owner_key, &mut buf)?;
 | track | what it is | this crate |
 |---|---|---|
 | **A** | `std` on ESP-IDF — the entropy and key-value backends | `rusty_esp_mid-esp --features esp-idf` |
-| **B** | `no_std` on `esp-hal` — the whole protocol | `rusty_esp_mid-core`, default |
+| **B** | `no_std` on `esp-hal` — the whole protocol, and since X4 the key's home too: the identity partition through `rusty_esp_core::nvs` (Espressif's NVS format in Rust) over `esp-storage`, the TRNG behind `Rng` | `rusty_esp_mid-core`, default; `rusty_esp_mid-esp --features esp-hal` for the backends |
 
 ## Part of Janus
 

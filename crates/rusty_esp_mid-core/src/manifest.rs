@@ -41,6 +41,24 @@ pub fn sign_manifest(
     Ok((n, sign_manifest_bytes(&out[..n], signer)))
 }
 
+/// [`sign_manifest`], the signature remembered in `kv` under `name`
+/// ([`crate::DeviceKey::sign_prehash_cached`]): a firmware whose manifest
+/// did not change since the last boot signs nothing. The same signature,
+/// byte for byte (round 2, R8).
+pub fn sign_manifest_cached(
+    manifest: &Manifest<'_>,
+    key: &crate::DeviceKey,
+    kv: &mut impl rusty_esp_core::hal::Kv,
+    name: &str,
+    out: &mut [u8],
+) -> Result<(usize, [u8; 64])> {
+    let n = manifest.encode(out)?;
+    Ok((
+        n,
+        key.sign_prehash_cached(kv, name, &prehash(MANIFEST_DOMAIN, &out[..n])),
+    ))
+}
+
 /// Verify a manifest signature under a 33-byte compressed device key.
 pub fn verify_manifest(
     manifest_bytes: &[u8],
