@@ -17,6 +17,7 @@
 //! | [`adoption`] | the owner-signed **Adoption** grant: who this device answers to | (Janus-defined) |
 //! | [`nonce`] | a bounded single-use nonce window | |
 //! | [`manifest`] | signing the `rusty_esp_core` capability manifest | |
+//! | [`setup`] | the setup session's Reply signature and stored records (enc-ble) | `rusty_esp_signal-core::setup` |
 //!
 //! Every canonical byte form that the `mid` repository defines is reproduced
 //! here exactly and gated by tests against the real `mid` crates on the host
@@ -44,6 +45,7 @@ pub mod kms;
 pub mod manifest;
 pub mod nonce;
 pub mod signer;
+pub mod setup;
 
 #[cfg(feature = "alloc")]
 pub mod jws;

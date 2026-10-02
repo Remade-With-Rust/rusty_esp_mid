@@ -401,3 +401,36 @@ and its feature gates hang on that. Checked: the S3 probe still links
 `fe_mul_xtensa`; an `xtensa-esp32-none-elf` build of the crate has no such
 symbol; the host tests pass. No ESP32 image was built with the old gate (the
 only cell regenerated in round 3 is C14, an S3).
+
+## enc-ble M3: the setup session's identity pieces (2026-10-02)
+
+`rusty_esp_mid_core::setup`, what the setup session (the umbrella's
+`docs/setup-protocol.md`; `rusty_esp_signal-core::setup`) asks of identity:
+
+| item | what |
+|---|---|
+| `REPLY_DOMAIN`, `reply_prehash` | `SHA-256("janus-setup-v1/reply\n" || u16be(len(context)) || context || shareP || shareV || confirmV)` |
+| `sign_reply` | the device's signature over it through `DeviceSigner` (the device key never leaves its signer) |
+| `verify_reply` | the browser's check against the `did:mata` it was shown, through `verify_prehash`: **low-s only** |
+| `KV_SETUP_VERIFIER`, `load_verifier`, `store_verifier` | the 118-byte verifier in the owner's settings namespace; another length is `Corrupt` |
+| `KV_SETUP_FAILURES`, `load_failures`, `store_failures` | the consecutive failure count; another length is `Corrupt` (the session reads that as locked) |
+
+**Held to.** `setup::tests::golden_reply`: the Reply of
+`rusty_esp_signal`'s golden session (its independent Python oracle, with its
+own RFC 6979 ECDSA; the lines copied into `tests/fixtures/setup-reply-v1.txt`)
+-- the prehash and this crate's `DeviceKey` signature byte for byte; another
+session's prehash, another key and the signature's high-s twin all refused.
+35 library tests on i686 and x86_64; `no_std` builds for wasm32, the S3 and
+the ESP32.
+
+**Found on the way.** The session's first `verify_reply` (in signal) called
+p256 directly and would have taken a high-s signature; this crate refuses
+them. The session now verifies here.
+
+`tests/oracle.rs` still does not compile (`InMemoryDeviceSigner` has no
+`sign_prehash`: the lock file carries two `mid-signer` packages); that
+predates this, as round 2's entry says.
+
+**Not released yet:** the crate on crates.io is 0.1.0; this, with round 2's
+and round 3's changes, is unpublished and uncommitted, waiting for the
+owner's go.
