@@ -434,3 +434,29 @@ predates this, as round 2's entry says.
 **Not released yet:** the crate on crates.io is 0.1.0; this, with round 2's
 and round 3's changes, is unpublished and uncommitted, waiting for the
 owner's go.
+
+**Released 2026-10-02** (an addendum to the entry above): with the owner's
+go, four commits on `main` -- `6734eb7` (X0/X4 and round 2), `bdab711`
+(round 3's vendored p256 and primeorder), `2fb8c45` (enc-ble M3), `139dcb3`
+(0.1.1) -- pushed, and `rusty_esp_mid-core` 0.1.1 published to crates.io from
+a fresh clone of `main` (no sibling patches; the package verified against
+crates.io's own dependencies). `rusty_esp_mid-esp` and the `rusty_esp_mid`
+facade are 0.1.1 in the repository but **not published**: the esp-hal
+backend (X4) uses `rusty_esp_core::nvs`, and crates.io's `rusty_esp_core`
+0.1.1 has no `nvs`; they follow a `rusty_esp_core` release that has it.
+
+**enc-ble M5 (2026-10-02): `EspNvsKv` reads strings too.** Track A's `Kv`
+read only blobs, so a key the portal's image writes as an NVS string
+(`espino_nvs::janus`: `name`, `wifi.ssid`, `wifi.psk`, `maker`) read as
+absent and the setup session's `boot` never found the flashed network.
+`get` now falls back to the string, returned without its NUL (what Track B's
+`rusty_esp_core::nvs::NvsKv` already did; the copy is wiped after), and
+`put` removes a string under the same key before writing its blob (NVS keys
+are typed). Built inside `xiao-s3-sense-idf-ble-provision`; not on a board
+yet. Uncommitted.
+
+**enc-ble M6 (2026-10-02): `hal::shared`.** `SharedPartition`,
+`open_shared` and `Store`: several partitions open at once on one
+`FlashStorage` (each operation borrows it through a `RefCell`), the owner's
+settings and the identity as the setup session holds them. Moved here from
+two signal firmwares' copies; C13 uses it on the XIAO. Uncommitted.

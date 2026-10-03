@@ -150,11 +150,39 @@ impl EspNvsKv<NvsCustom> {
     }
 }
 
+/// A value read as a string: Track B's `rusty_esp_core::nvs::NvsKv` returns
+/// one without its NUL, and so does this, so a key reads the same on both
+/// tracks. The owner's settings image (`espino_nvs::janus`) writes `name`,
+/// `wifi.ssid`, `wifi.psk` and `maker` as NVS strings; a reader that took only
+/// blobs never found the network the portal flashed (enc-ble M5).
+fn get_str_value<T: NvsPartitionId>(nvs: &EspNvs<T>, key: &str, out: &mut [u8]) -> Result<Option<usize>> {
+    // `str_len` counts the NUL
+    let Some(with_nul) = nvs.str_len(key).map_err(map)? else {
+        return Ok(None);
+    };
+    let len = with_nul.saturating_sub(1);
+    if out.len() < len {
+        return Err(Error::BufferTooSmall { needed: len });
+    }
+    let mut buf = vec![0u8; with_nul.max(1)];
+    let read = nvs.get_str(key, &mut buf).map_err(map).map(|s| {
+        s.map(|s| {
+            out[..s.len()].copy_from_slice(s.as_bytes());
+            s.len()
+        })
+    });
+    // it may have been the Wi-Fi passphrase
+    buf.fill(0);
+    core::hint::black_box(&buf);
+    read
+}
+
 impl<T: NvsPartitionId> Kv for EspNvsKv<T> {
+    /// A blob, or else a string (without its NUL): see [`get_str_value`].
     fn get(&self, key: &str, out: &mut [u8]) -> Result<Option<usize>> {
         check_key(key)?;
         let Some(len) = self.nvs.blob_len(key).map_err(map)? else {
-            return Ok(None);
+            return get_str_value(&self.nvs, key, out);
         };
         if out.len() < len {
             return Err(Error::BufferTooSmall { needed: len });
@@ -165,8 +193,14 @@ impl<T: NvsPartitionId> Kv for EspNvsKv<T> {
         }
     }
 
+    /// Always a blob. An NVS key is typed, so a string under the same key
+    /// (the portal's image) is removed first: the value then reads back as
+    /// what was put.
     fn put(&mut self, key: &str, value: &[u8]) -> Result<()> {
         check_key(key)?;
+        if self.nvs.str_len(key).map_err(map)?.is_some() {
+            self.nvs.remove(key).map_err(map)?;
+        }
         self.nvs.set_blob(key, value).map_err(map)
     }
 
