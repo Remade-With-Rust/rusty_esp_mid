@@ -4,6 +4,8 @@
 
 The chip backends for the identity package: the device key's home in the chip's key-value partition behind the store seam, with the encryption check the plan demands, and the hardware entropy source behind the entropy seam. On Track A (`esp-idf`) that is ESP-IDF's NVS and TRNG; on Track B (`esp-hal`) it is the same `identity` partition read and written by `rusty_esp_core::nvs` — Espressif's NVS format in pure Rust — over `esp-storage`, and `esp-hal`'s TRNG. A key minted on one track is read on the other.
 
+New in 0.1.2: `EspNvsKv` reads a value written as an NVS string as well as a blob (what the owner's settings image holds), and `hal::shared` keeps several partitions open on one flash at once -- the owner's settings and the identity, as the Janus setup session holds them.
+
 The entropy source is named in the code rather than assumed: without the analogue-backed path, the chip's generator is a pseudo-random register, and this crate refuses rather than pretending.
 
 ## Where the evidence is

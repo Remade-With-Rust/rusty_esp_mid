@@ -7,7 +7,7 @@ members = ["crates/*"]
 exclude = ["firmware/*"]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Remade-With-Rust/rusty_esp_mid"
@@ -29,13 +29,13 @@ undocumented_unsafe_blocks = "deny"
 [workspace.dependencies]
 # Internal crates carry BOTH path and version so the set publishes to crates.io
 # in lockstep (the rusty_time pattern).
-rusty_esp_mid-core = { path = "crates/rusty_esp_mid-core", version = "0.1.1", default-features = false }
-rusty_esp_mid-esp = { path = "crates/rusty_esp_mid-esp", version = "0.1.1", default-features = false }
+rusty_esp_mid-core = { path = "crates/rusty_esp_mid-core", version = "0.1.2", default-features = false }
+rusty_esp_mid-esp = { path = "crates/rusty_esp_mid-esp", version = "0.1.2", default-features = false }
 
 # Siblings in the Janus family are consumed BY GIT URL so this repo deploys on
 # its own. Inside the Janus umbrella folder, `.cargo/config.toml` patches the
 # URL to the sibling checkout, so local edits are visible without a push.
-rusty_esp_core = { version = "0.1", git = "https://github.com/Remade-With-Rust/rusty_esp_core", default-features = false }
+rusty_esp_core = { version = "0.1.2", git = "https://github.com/Remade-With-Rust/rusty_esp_core", default-features = false }
 
 # Crypto — RustCrypto only, pinned to the majors the `mid` repository uses so
 # the whole family agrees on one P-256 and one SHA-2 in a build graph.
