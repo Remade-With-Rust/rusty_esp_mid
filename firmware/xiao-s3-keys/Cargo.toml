@@ -59,10 +59,15 @@ esp-storage = { version = "=0.10.0", features = ["esp32s3"], optional = true }
 rusty_esp_mid-core = { path = "../../crates/rusty_esp_mid-core", default-features = false }
 # Track B backends: the partition table, a partition as NVS flash, the TRNG.
 rusty_esp_mid-esp = { path = "../../crates/rusty_esp_mid-esp", default-features = false, features = ["esp-hal"], optional = true }
-rusty_esp_core = { path = "../../../rusty_esp_core/crates/rusty_esp_core", default-features = false }
+# NOT a path into the sibling checkout: that only exists inside the Janus
+# umbrella, so a standalone clone could not even load the manifest
+# ("failed to load manifest for dependency rusty_esp_core: No such file or
+# directory"), which is what the CI firmware job was failing on. The
+# gitignored .cargo/config.toml patches these to the local checkouts.
+rusty_esp_core = { version = "0.1", default-features = false }
 # The RTOS seam, never `rusty_rtos_port-*` directly. See the seam's README
 # for the `xtensa-lx-rt` links-crate joint this firmware already satisfies.
-rusty_esp_rtos = { path = "../../../rusty_esp_core/crates/rusty_esp_rtos", default-features = false, features = ["port"], optional = true }
+rusty_esp_rtos = { version = "0.1", default-features = false, features = ["port"], optional = true }
 
 [profile.release]
 opt-level = 3
