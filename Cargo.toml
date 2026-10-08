@@ -61,12 +61,12 @@ serde_json = { version = "1", default-features = false, features = ["alloc"] }
 # Host-side oracles for the tests: the real `mid` crates, by git.
 mid-types = { version = "0.2.0", default-features = false }
 mid-signer = { version = "0.2.0", default-features = false }
-mid-verify = { git = "https://github.com/Remade-With-Rust/mid", branch = "device-signer-leaf" }
-mid-issuer = { git = "https://github.com/Remade-With-Rust/mid", branch = "device-signer-leaf" }
-kms-types = { git = "https://github.com/Remade-With-Rust/mid", branch = "device-signer-leaf" }
-kms-verifier = { git = "https://github.com/Remade-With-Rust/mid", branch = "device-signer-leaf" }
-kms-client = { git = "https://github.com/Remade-With-Rust/mid", branch = "device-signer-leaf" }
-mata-cap = { git = "https://github.com/Remade-With-Rust/mid", branch = "device-signer-leaf" }
+mid-verify = { git = "https://github.com/Remade-With-Rust/mid", rev = "310ecbb", version = "0.2" }
+mid-issuer = { git = "https://github.com/Remade-With-Rust/mid", rev = "310ecbb", version = "0.2" }
+kms-types = { git = "https://github.com/Remade-With-Rust/mid", rev = "310ecbb", version = "0.2" }
+kms-verifier = { git = "https://github.com/Remade-With-Rust/mid", rev = "310ecbb", version = "0.2" }
+kms-client = { git = "https://github.com/Remade-With-Rust/mid", rev = "310ecbb", version = "0.2", default-features = false }
+mata-cap = { git = "https://github.com/Remade-With-Rust/mid", rev = "310ecbb", version = "0.2" }
 
 [profile.release]
 lto = "thin"
@@ -97,6 +97,6 @@ codegen-units = 1
 # path copies of these two crates; the patch makes the registry versions
 # resolve to the same source, so a test build has one `DeviceSigner`, not
 # two. Patches are ignored on publish, where only the registry versions apply.
-mid-types = { git = "https://github.com/Remade-With-Rust/mid", branch = "device-signer-leaf" }
-mid-signer = { git = "https://github.com/Remade-With-Rust/mid", branch = "device-signer-leaf" }
+mid-types = { git = "https://github.com/Remade-With-Rust/mid", rev = "310ecbb", version = "0.2" }
+mid-signer = { git = "https://github.com/Remade-With-Rust/mid", rev = "310ecbb", version = "0.2" }
 serde_json = { git = "https://github.com/Remade-With-Rust/rusty_json_turbo", branch = "master" }

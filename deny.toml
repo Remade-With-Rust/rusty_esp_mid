@@ -34,6 +34,10 @@ ignore = []
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-git = [
-  "https://github.com/Remade-With-Rust/rusty_esp_core",
+  # The identity crates this device half is the oracle for.
   "https://github.com/Remade-With-Rust/mid",
+  # The house serde_json fork: this workspace swaps the whole graph onto it
+  # (see the note above `[dependencies]`), so its source has to be allowed
+  # or every crate that comes through it is an unknown git source.
+  "https://github.com/Remade-With-Rust/rusty_json_turbo",
 ]
