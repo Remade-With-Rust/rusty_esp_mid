@@ -12,7 +12,7 @@ use rusty_esp_core::error::{Error, Result};
 use rusty_esp_core::hal::Kv;
 use sha2::{Digest, Sha256};
 
-use crate::signer::{verify_prehash, DeviceSigner};
+use crate::signer::{DeviceSigner, verify_prehash};
 
 /// The Reply signature's domain separator.
 pub const REPLY_DOMAIN: &[u8] = b"janus-setup-v1/reply\n";

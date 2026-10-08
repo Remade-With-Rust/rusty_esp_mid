@@ -44,8 +44,8 @@ pub mod key;
 pub mod kms;
 pub mod manifest;
 pub mod nonce;
-pub mod signer;
 pub mod setup;
+pub mod signer;
 
 #[cfg(feature = "alloc")]
 pub mod jws;

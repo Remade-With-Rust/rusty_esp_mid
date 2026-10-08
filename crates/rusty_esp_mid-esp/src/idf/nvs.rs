@@ -155,7 +155,11 @@ impl EspNvsKv<NvsCustom> {
 /// tracks. The owner's settings image (`espino_nvs::janus`) writes `name`,
 /// `wifi.ssid`, `wifi.psk` and `maker` as NVS strings; a reader that took only
 /// blobs never found the network the portal flashed (enc-ble M5).
-fn get_str_value<T: NvsPartitionId>(nvs: &EspNvs<T>, key: &str, out: &mut [u8]) -> Result<Option<usize>> {
+fn get_str_value<T: NvsPartitionId>(
+    nvs: &EspNvs<T>,
+    key: &str,
+    out: &mut [u8],
+) -> Result<Option<usize>> {
     // `str_len` counts the NUL
     let Some(with_nul) = nvs.str_len(key).map_err(map)? else {
         return Ok(None);
