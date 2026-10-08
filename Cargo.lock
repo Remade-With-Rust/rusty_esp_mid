@@ -2410,7 +2410,7 @@ dependencies = [
 [[package]]
 name = "rusty_json_turbo"
 version = "0.2.0"
-source = "git+https://github.com/Remade-With-Rust/rusty_json_turbo?branch=master#77a58ed4c8e281f66e2d6b3a5b9ccd979ebec05b"
+source = "git+https://github.com/Remade-With-Rust/rusty_json_turbo?branch=master#d3da5111040cdd7b5d38e81dafd08e55191af426"
 dependencies = [
  "itoa",
  "memchr",
@@ -2423,7 +2423,7 @@ dependencies = [
 [[package]]
 name = "rusty_json_turbo-accel"
 version = "0.2.0"
-source = "git+https://github.com/Remade-With-Rust/rusty_json_turbo?branch=master#77a58ed4c8e281f66e2d6b3a5b9ccd979ebec05b"
+source = "git+https://github.com/Remade-With-Rust/rusty_json_turbo?branch=master#d3da5111040cdd7b5d38e81dafd08e55191af426"
 
 [[package]]
 name = "ryu"
@@ -2497,7 +2497,7 @@ dependencies = [
 [[package]]
 name = "serde_json"
 version = "1.0.151"
-source = "git+https://github.com/Remade-With-Rust/rusty_json_turbo?branch=master#77a58ed4c8e281f66e2d6b3a5b9ccd979ebec05b"
+source = "git+https://github.com/Remade-With-Rust/rusty_json_turbo?branch=master#d3da5111040cdd7b5d38e81dafd08e55191af426"
 dependencies = [
  "rusty_json_turbo",
 ]
