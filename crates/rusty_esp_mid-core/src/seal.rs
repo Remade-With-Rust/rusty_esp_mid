@@ -206,11 +206,17 @@ mod tests {
     fn a_value_reads_back_and_is_not_on_the_flash_in_the_clear() {
         let mut kv = sealed();
         kv.put("wifi.psk", b"correct horse battery").unwrap();
-        assert_eq!(get(&kv, "wifi.psk").unwrap().unwrap(), b"correct horse battery");
+        assert_eq!(
+            get(&kv, "wifi.psk").unwrap().unwrap(),
+            b"correct horse battery"
+        );
         let stored = raw(&kv, "wifi.psk");
         assert!(stored.starts_with(&MAGIC));
         assert_eq!(stored.len(), 21 + OVERHEAD);
-        assert!(!stored.windows(5).any(|w| w == b"horse"), "no plaintext at rest");
+        assert!(
+            !stored.windows(5).any(|w| w == b"horse"),
+            "no plaintext at rest"
+        );
         assert_eq!(kv.is_sealed("wifi.psk").unwrap(), Some(true));
         assert_eq!(kv.is_sealed("absent").unwrap(), None);
         assert!(get(&kv, "absent").unwrap().is_none());
@@ -240,7 +246,11 @@ mod tests {
         kv.inner.put("name", &good).unwrap();
         assert_eq!(get(&kv, "name"), Err(Error::Crypto), "the name is bound in");
         // the right name, another device's key
-        let mut other = SealedKv::new(MemoryKv::default(), InsecureTestRng::seeded(2), Some(&[8; 32]));
+        let mut other = SealedKv::new(
+            MemoryKv::default(),
+            InsecureTestRng::seeded(2),
+            Some(&[8; 32]),
+        );
         other.inner.put("wifi.psk", &good).unwrap();
         assert_eq!(get(&other, "wifi.psk"), Err(Error::Crypto));
         // and a sealed value with no key at all is refused, not returned raw
@@ -257,13 +267,25 @@ mod tests {
         let mut kv = sealed();
         kv.inner.put("wifi.ssid", b"home").unwrap();
         kv.inner.put("wifi.psk", b"hunter22").unwrap();
-        assert_eq!(get(&kv, "wifi.psk").unwrap().unwrap(), b"hunter22", "still reads");
+        assert_eq!(
+            get(&kv, "wifi.psk").unwrap().unwrap(),
+            b"hunter22",
+            "still reads"
+        );
         assert_eq!(kv.is_sealed("wifi.psk").unwrap(), Some(false));
-        assert_eq!(kv.seal_in_place(&["wifi.ssid", "wifi.psk", "absent"]).unwrap(), 2);
+        assert_eq!(
+            kv.seal_in_place(&["wifi.ssid", "wifi.psk", "absent"])
+                .unwrap(),
+            2
+        );
         assert_eq!(kv.is_sealed("wifi.psk").unwrap(), Some(true));
         assert_eq!(get(&kv, "wifi.psk").unwrap().unwrap(), b"hunter22");
         assert_eq!(get(&kv, "wifi.ssid").unwrap().unwrap(), b"home");
-        assert_eq!(kv.seal_in_place(&["wifi.ssid", "wifi.psk"]).unwrap(), 0, "once");
+        assert_eq!(
+            kv.seal_in_place(&["wifi.ssid", "wifi.psk"]).unwrap(),
+            0,
+            "once"
+        );
     }
 
     #[test]
@@ -285,12 +307,18 @@ mod tests {
     #[test]
     fn sizes_are_refused_not_truncated() {
         let mut kv = sealed();
-        assert_eq!(kv.put("big", &[1u8; MAX_VALUE + 1]), Err(Error::Unsupported));
+        assert_eq!(
+            kv.put("big", &[1u8; MAX_VALUE + 1]),
+            Err(Error::Unsupported)
+        );
         kv.put("max", &[2u8; MAX_VALUE]).unwrap();
         assert_eq!(get(&kv, "max").unwrap().unwrap().len(), MAX_VALUE);
         kv.put("k", b"twelve bytes").unwrap();
         let mut small = [0u8; 4];
-        assert_eq!(kv.get("k", &mut small), Err(Error::BufferTooSmall { needed: 12 }));
+        assert_eq!(
+            kv.get("k", &mut small),
+            Err(Error::BufferTooSmall { needed: 12 })
+        );
         // a value stored in the clear, longer than any sealed one, still reads
         kv.inner.put("legacy", &[3u8; 400]).unwrap();
         let mut big = [0u8; 400];
