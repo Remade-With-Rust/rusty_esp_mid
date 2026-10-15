@@ -71,6 +71,12 @@ impl<K: Kv, R: Rng> SealedKv<K, R> {
         self.cipher.is_some()
     }
 
+    /// The store underneath, borrowed (to scrub it after sealing in place:
+    /// NVS keeps a rewritten value's old bytes until its page is erased).
+    pub const fn inner(&self) -> &K {
+        &self.inner
+    }
+
     /// The store underneath.
     pub fn into_inner(self) -> K {
         self.inner
