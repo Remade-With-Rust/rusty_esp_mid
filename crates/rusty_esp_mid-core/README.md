@@ -6,6 +6,8 @@ The pure half of the identity package: a P-256 device `did:mata`, the byte-ident
 
 Agreement with the wider MATA stack is a test, not an intention: signatures equal the reference signer for the same key, and the capability check agrees with the reference implementation on **144 of 144 cases**.
 
+New in 0.1.3: `seal::SealedKv` keeps secrets sealed at rest behind the same store seam -- AES-256-GCM, each value bound to its key name, a fresh nonce per write -- under a key the chip derives and never stores. A store provisioned in the clear is sealed where it lies; `inner()` hands the store back so a firmware can scrub what the old values left behind.
+
 ## Where the evidence is
 
 This crate is part of [`rusty_esp_mid`](https://crates.io/crates/rusty_esp_mid). The
