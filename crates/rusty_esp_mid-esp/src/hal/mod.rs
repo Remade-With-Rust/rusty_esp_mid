@@ -7,6 +7,9 @@
 //!   too. The two tracks read each other's partitions.
 //! - [`find_partition`]: the partition table at `0x8000`, by label.
 //! - [`EspHalRng`]: the chip's hardware generator behind `Rng`.
+//! - `seal_key` (feature `seal-hmac`): the key a
+//!   [`SealedKv`](rusty_esp_mid_core::seal::SealedKv) seals secrets under,
+//!   from the HMAC peripheral and an eFuse key block.
 //! - [`SharedPartition`] / [`open_shared`] / [`Store`]: several partitions
 //!   (the owner's settings, the identity) open at once on one flash, as the
 //!   setup session holds them.
@@ -19,9 +22,13 @@
 pub mod flash;
 pub mod partitions;
 pub mod rng;
+#[cfg(feature = "seal-hmac")]
+pub mod seal;
 pub mod shared;
 
 pub use flash::PartitionFlash;
 pub use partitions::{Partition, find_partition};
 pub use rng::EspHalRng;
+#[cfg(feature = "seal-hmac")]
+pub use seal::seal_key;
 pub use shared::{SharedFlash, SharedNvs, SharedPartition, Store, open_shared};

@@ -77,8 +77,8 @@ for row in rows:
 out.append('];')
 import os
 import sys
-dst = sys.argv[1] if len(sys.argv) > 1 else 'F:/coding/janus/rusty_esp_mid/vendor/p256/src/arithmetic/generator_table.rs'
-# never open(dst, 'w') on F: (a truncation there once lost a file)
+dst = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'p256', 'src', 'arithmetic', 'generator_table.rs')
+# never open(dst, 'w') directly (a truncation on F: once lost a file)
 open(dst + '.tmp', 'w', encoding='utf-8', newline='\n').write('\n'.join(out) + '\n')
 os.replace(dst + '.tmp', dst)
 print('rows', len(rows), 'entries', sum(len(r) for r in rows))

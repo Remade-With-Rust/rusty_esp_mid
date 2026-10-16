@@ -44,6 +44,7 @@ pub mod key;
 pub mod kms;
 pub mod manifest;
 pub mod nonce;
+pub mod seal;
 pub mod setup;
 pub mod signer;
 

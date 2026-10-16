@@ -22,6 +22,9 @@ alloc = ["rusty_esp_mid-core/alloc"]
 # (`esp-storage/esp32s3` and the like); no `alloc` is needed for them, so
 # the core-only rung stays measurable underneath.
 esp-hal = ["dep:esp-hal", "dep:esp-storage"]
+# The sealing key from the HMAC peripheral (`hal::seal_key`): chips that have
+# one (C3, C6, H2, S2, S3). The firmware turns it on with its chip.
+seal-hmac = ["esp-hal", "dep:nb"]
 # Track A — std on ESP-IDF via esp-idf-svc: `idf::{EspNvsKv, EspRng}`.
 esp-idf = ["std", "dep:esp-idf-svc"]
 # Development only: let `EspNvsKv::open` accept a plaintext NVS partition.
@@ -35,6 +38,8 @@ esp-idf-svc = { version = "0.52", optional = true }
 # esp-storage 0.10.0 today) and selects the chip.
 esp-hal = { version = "1.2", default-features = false, features = ["unstable"], optional = true }
 esp-storage = { version = "0.10", optional = true }
+# esp-hal's HMAC driver answers in `nb` results
+nb = { version = "1.1", optional = true }
 
 [build-dependencies]
 # Re-emits esp-idf-sys's cfgs to this crate (build.rs); a no-op on the host.
