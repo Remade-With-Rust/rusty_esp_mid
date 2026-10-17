@@ -47,6 +47,7 @@ pub mod nonce;
 pub mod seal;
 pub mod setup;
 pub mod signer;
+pub mod status;
 
 #[cfg(feature = "alloc")]
 pub mod jws;
