@@ -45,6 +45,8 @@ pub mod kms;
 pub mod manifest;
 pub mod nonce;
 pub mod seal;
+#[cfg(feature = "alloc")]
+pub mod settings_adoption;
 pub mod setup;
 pub mod signer;
 pub mod status;
