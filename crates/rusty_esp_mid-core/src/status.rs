@@ -201,6 +201,123 @@ pub fn parse_nonce_hex(s: &str) -> Result<[u8; 32]> {
     Ok(out)
 }
 
+#[cfg(feature = "alloc")]
+pub use document::{Adoption, StatusDocument};
+
+/// The `GET /v1/status` body (the OEM sidecar status contract, v1): the
+/// discovery fields, and with a nonce the proof fields and the device's
+/// signature over [`StatusProof`].
+#[cfg(feature = "alloc")]
+mod document {
+    use alloc::string::{String, ToString};
+
+    use base64::Engine;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    use serde_json::{Map, Value, json};
+
+    use super::StatusProof;
+
+    /// The adoption a device holds, as it stored it.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Adoption<'a> {
+        /// The owner the device accepted.
+        pub owner_did: &'a str,
+        /// [`super::KIND_MATA_STATEMENT`] or [`super::KIND_ADOPTION_V1`].
+        pub kind: &'a str,
+        /// Its decoded bytes: what the signature hashes and `adoption` carries.
+        pub bytes: &'a [u8],
+    }
+
+    /// What a device says about itself on `/v1/status`.
+    #[derive(Debug, Clone, PartialEq)]
+    pub struct StatusDocument<'a> {
+        /// The device's own `did:mata`.
+        pub device_did: &'a str,
+        /// The maker's DID, when the firmware names one.
+        pub maker_did: Option<&'a str>,
+        /// A label for people.
+        pub model: &'a str,
+        /// The iroh endpoint id, or `None` on a cell without one.
+        pub node_id: Option<&'a str>,
+        /// The adoption, when the device holds one.
+        pub adoption: Option<Adoption<'a>>,
+        /// Any other fields (health: `boots`, `rssi`, `fps`, …), served with
+        /// the signed form. A key that names a contract field is ignored.
+        pub extra: Map<String, Value>,
+    }
+
+    /// The contract's own fields, which `extra` may not replace.
+    const FIELDS: [&str; 9] = [
+        "pair",
+        "maker_did",
+        "model",
+        "device_did",
+        "node_id",
+        "owner_did",
+        "adoption_kind",
+        "adoption",
+        "device_sig",
+    ];
+
+    impl StatusDocument<'_> {
+        /// `"ready"`, or `{"paired":{"owner_did":…}}` once adopted.
+        fn pair(&self) -> Value {
+            match &self.adoption {
+                None => Value::from("ready"),
+                Some(a) => json!({ "paired": { "owner_did": a.owner_did } }),
+            }
+        }
+
+        /// The body without a nonce: the discovery fields only.
+        #[must_use]
+        pub fn plain(&self) -> Value {
+            json!({
+                "pair": self.pair(),
+                "maker_did": self.maker_did,
+                "model": self.model,
+                "device_did": self.device_did,
+                "node_id": self.node_id,
+            })
+        }
+
+        /// The body for `?nonce=`: the discovery fields, the adoption, the
+        /// other fields, and `device_sig` from `sign` (the device key's
+        /// `sign_prehash`) over the [`StatusProof`] of `nonce`.
+        pub fn signed(
+            &self,
+            nonce: &[u8; 32],
+            sign: impl FnOnce(&[u8; 32]) -> [u8; 64],
+        ) -> rusty_esp_core::error::Result<Value> {
+            let proof = match &self.adoption {
+                None => StatusProof::unadopted(nonce, self.device_did),
+                Some(a) => {
+                    StatusProof::adopted(nonce, self.device_did, a.owner_did, a.kind, a.bytes)
+                }
+            };
+            let sig = sign(&proof.prehash()?);
+            let mut out = Map::new();
+            for (k, v) in &self.extra {
+                if !FIELDS.contains(&k.as_str()) {
+                    out.insert(k.clone(), v.clone());
+                }
+            }
+            if let Value::Object(plain) = self.plain() {
+                out.extend(plain);
+            }
+            if let Some(a) = &self.adoption {
+                out.insert("owner_did".to_string(), a.owner_did.into());
+                out.insert("adoption_kind".to_string(), a.kind.into());
+                out.insert(
+                    "adoption".to_string(),
+                    URL_SAFE_NO_PAD.encode(a.bytes).into(),
+                );
+            }
+            out.insert("device_sig".to_string(), URL_SAFE_NO_PAD.encode(sig).into());
+            Ok(Value::Object(out))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -379,5 +496,77 @@ mod vector {
         let sig = p.sign(&key).unwrap();
         assert_eq!(hex(&sig), SIGNATURE);
         assert_eq!(p.verify(&sig), Ok(()));
+    }
+
+    #[test]
+    fn the_document_carries_the_vector() {
+        use base64::Engine;
+        use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+        use mid_signer::DeviceSigner;
+        use serde_json::{Map, Value, json};
+
+        let key = DeviceKey::from_seed_for_tests("janus-status-v1-vector", "vector");
+        let mut extra = Map::new();
+        extra.insert("boots".into(), 7.into());
+        // a contract field in `extra` does not replace the real one
+        extra.insert("device_did".into(), "did:mata:someoneElse".into());
+        let doc = StatusDocument {
+            device_did: DEVICE_DID,
+            maker_did: Some("did:mata:maker"),
+            model: "XIAO ESP32-S3 Sense camera",
+            node_id: None,
+            adoption: Some(Adoption {
+                owner_did: OWNER_DID,
+                kind: KIND_ADOPTION_V1,
+                bytes: ADOPTION,
+            }),
+            extra,
+        };
+
+        let plain = doc.plain();
+        assert_eq!(
+            plain,
+            json!({
+                "pair": { "paired": { "owner_did": OWNER_DID } },
+                "maker_did": "did:mata:maker",
+                "model": "XIAO ESP32-S3 Sense camera",
+                "device_did": DEVICE_DID,
+                "node_id": null,
+            })
+        );
+
+        let signed = doc.signed(&NONCE, |h| key.sign_prehash(h)).unwrap();
+        let s = |k: &str| signed[k].as_str().unwrap().to_owned();
+        assert_eq!(
+            hex(&URL_SAFE_NO_PAD.decode(s("device_sig")).unwrap()),
+            SIGNATURE
+        );
+        assert_eq!(URL_SAFE_NO_PAD.decode(s("adoption")).unwrap(), ADOPTION);
+        assert_eq!(s("owner_did"), OWNER_DID);
+        assert_eq!(s("adoption_kind"), KIND_ADOPTION_V1);
+        assert_eq!(s("device_did"), DEVICE_DID);
+        assert_eq!(signed["boots"], 7);
+        assert_eq!(signed["node_id"], Value::Null);
+
+        // not adopted: "ready", no adoption fields, still signed
+        let doc = StatusDocument {
+            adoption: None,
+            extra: Map::new(),
+            ..doc
+        };
+        assert_eq!(doc.plain()["pair"], "ready");
+        let signed = doc.signed(&NONCE, |h| key.sign_prehash(h)).unwrap();
+        for k in ["owner_did", "adoption_kind", "adoption"] {
+            assert!(signed.get(k).is_none(), "{k}");
+        }
+        let sig: [u8; 64] = URL_SAFE_NO_PAD
+            .decode(signed["device_sig"].as_str().unwrap())
+            .unwrap()
+            .try_into()
+            .unwrap();
+        assert_eq!(
+            StatusProof::unadopted(&NONCE, DEVICE_DID).verify(&sig),
+            Ok(())
+        );
     }
 }
