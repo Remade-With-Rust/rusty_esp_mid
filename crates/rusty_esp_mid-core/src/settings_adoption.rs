@@ -31,6 +31,11 @@
 //! with the verifier re-checks the stored container and drops the pin if it
 //! fails. The settings arrive only over the cable, and the hub verifies the
 //! signature in full before it treats anyone as the owner.
+//!
+//! **Giving the device away** is [`forget`]: the grant, the pin and its mark
+//! go, the device key stays, so the next owner adopts the same DID as a
+//! first adoption. Only a hand on the device asks for it (the firmware's
+//! button), never a message.
 
 use alloc::string::String;
 use alloc::vec;
@@ -254,6 +259,21 @@ pub fn stored<I: Kv + ?Sized>(identity: &I, my_did: &str) -> Result<Option<Store
     }))
 }
 
+/// Forget the owner: remove the stored adoption, its kind, the owner pin and
+/// its provisional mark from `identity`, and nothing else (the device key,
+/// and so the DID, stay). `true` when an owner was held. The pin goes last:
+/// a power cut part way leaves the pin, so the next call finishes the job
+/// and the device is never left pinned to an owner it holds no grant from
+/// without saying so.
+pub fn forget<I: Kv + ?Sized>(identity: &mut I) -> Result<bool> {
+    let held = stored_pin(identity)?.is_some();
+    identity.remove(KV_ADOPTION)?;
+    identity.remove(KV_ADOPTION_KIND)?;
+    identity.remove(KV_PIN_PROVISIONAL)?;
+    identity.remove(KV_OWNER_PIN)?;
+    Ok(held)
+}
+
 /// Take the settings' adoption into the identity store (see the module
 /// docs). `my_did` is this device's `did:mata`.
 pub fn apply<S: Kv + ?Sized, I: Kv + ?Sized>(
@@ -362,6 +382,50 @@ mod tests {
         let owner = did_of(&DeviceKey::from_seed_for_tests("settings-adopt-owner", "o"));
         let other = did_of(&DeviceKey::from_seed_for_tests("settings-adopt-other", "x"));
         (device, owner, other)
+    }
+
+    #[test]
+    fn forgetting_the_owner_keeps_the_key_and_the_next_owner_adopts_afresh() {
+        let (device, owner, other) = setup();
+        let (mut s, mut id) = (MemoryKv::new(), MemoryKv::new());
+        id.put("mid.devkey", &[7; 32]).unwrap();
+        assert_eq!(forget(&mut id), Ok(false), "nothing held");
+
+        s.put(
+            SETTINGS_ADOPT,
+            &container(&device, &owner, &owner, 1, STATEMENT_CONTEXT),
+        )
+        .unwrap();
+        apply(&mut s, &mut id, &device).unwrap();
+        assert!(stored(&id, &device).unwrap().is_some());
+
+        assert_eq!(forget(&mut id), Ok(true));
+        let mut buf = vec![0u8; ADOPT_MAX];
+        for k in [
+            KV_ADOPTION,
+            KV_ADOPTION_KIND,
+            KV_OWNER_PIN,
+            KV_PIN_PROVISIONAL,
+        ] {
+            assert_eq!(id.get(k, &mut buf).unwrap(), None, "{k}");
+        }
+        assert_eq!(
+            id.get("mid.devkey", &mut buf).unwrap(),
+            Some(32),
+            "the key stays"
+        );
+        assert_eq!(stored(&id, &device), Ok(None));
+
+        // another owner, refused before, is now a first adoption
+        s.put(
+            SETTINGS_ADOPT,
+            &container(&device, &other, &other, 1, STATEMENT_CONTEXT),
+        )
+        .unwrap();
+        assert!(matches!(
+            apply(&mut s, &mut id, &device),
+            Ok(Outcome::Adopted { owner_did, .. }) if owner_did == other
+        ));
     }
 
     #[test]
