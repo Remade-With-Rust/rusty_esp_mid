@@ -184,6 +184,76 @@ fn stored_pin<I: Kv + ?Sized>(identity: &I) -> Result<Option<OwnerPin>> {
     }
 }
 
+/// The adoption the identity store holds, as `/v1/status` presents it
+/// ([`Stored::as_status`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Stored {
+    /// The owner the device accepted.
+    pub owner_did: String,
+    /// [`KIND_MATA_STATEMENT`] or [`crate::status::KIND_ADOPTION_V1`].
+    pub kind: &'static str,
+    /// The stored bytes: the statement container, or the v1 envelope.
+    pub bytes: Vec<u8>,
+    /// The pin was taken on a structural check only ([`KV_PIN_PROVISIONAL`]).
+    pub provisional: bool,
+}
+
+impl Stored {
+    /// As the status document takes it.
+    #[must_use]
+    pub fn as_status(&self) -> crate::status::Adoption<'_> {
+        crate::status::Adoption {
+            owner_did: &self.owner_did,
+            kind: self.kind,
+            bytes: &self.bytes,
+        }
+    }
+}
+
+/// The adoption in `identity`, if it holds one for `my_did`: a statement
+/// [`apply`] stored (its kind key says so), or a v1 envelope stored by the
+/// mesh's adoption (no kind key). Bytes that parse as neither, or that name
+/// another device, are not presented: `None`.
+pub fn stored<I: Kv + ?Sized>(identity: &I, my_did: &str) -> Result<Option<Stored>> {
+    let mut bytes = vec![0u8; ADOPT_MAX];
+    let n = match identity.get(KV_ADOPTION, &mut bytes) {
+        Ok(Some(n)) => n,
+        Ok(None) | Err(Error::BufferTooSmall { .. }) => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    bytes.truncate(n);
+    let mut kind = [0u8; 32];
+    let is_statement = match identity.get(KV_ADOPTION_KIND, &mut kind) {
+        Ok(Some(k)) => &kind[..k] == KIND_MATA_STATEMENT.as_bytes(),
+        Ok(None) => false,
+        Err(Error::BufferTooSmall { .. }) => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    let mut flag = [0u8; 1];
+    let provisional =
+        matches!(identity.get(KV_PIN_PROVISIONAL, &mut flag), Ok(Some(1))) && flag[0] == 1;
+    let (owner_did, kind) = if is_statement {
+        match check_statement(&bytes, my_did) {
+            Ok(c) => (c.owner_did, KIND_MATA_STATEMENT),
+            Err(_) => return Ok(None),
+        }
+    } else {
+        match crate::adoption::Adoption::decode(&bytes) {
+            Ok(a) if a.fields.device_did == my_did => (
+                String::from(a.fields.owner_did),
+                crate::status::KIND_ADOPTION_V1,
+            ),
+            _ => return Ok(None),
+        }
+    };
+    Ok(Some(Stored {
+        owner_did,
+        kind,
+        bytes,
+        provisional,
+    }))
+}
+
 /// Take the settings' adoption into the identity store (see the module
 /// docs). `my_did` is this device's `did:mata`.
 pub fn apply<S: Kv + ?Sized, I: Kv + ?Sized>(
@@ -292,6 +362,56 @@ mod tests {
         let owner = did_of(&DeviceKey::from_seed_for_tests("settings-adopt-owner", "o"));
         let other = did_of(&DeviceKey::from_seed_for_tests("settings-adopt-other", "x"));
         (device, owner, other)
+    }
+
+    #[test]
+    fn the_stored_adoption_is_read_back_for_the_status() {
+        let (device, owner, other) = setup();
+        let (mut s, mut id) = (MemoryKv::new(), MemoryKv::new());
+        assert_eq!(stored(&id, &device), Ok(None));
+
+        let c = container(&device, &owner, &owner, 1, STATEMENT_CONTEXT);
+        s.put(SETTINGS_ADOPT, &c).unwrap();
+        apply(&mut s, &mut id, &device).unwrap();
+        let got = stored(&id, &device).unwrap().unwrap();
+        assert_eq!(
+            got,
+            Stored {
+                owner_did: owner.clone(),
+                kind: KIND_MATA_STATEMENT,
+                bytes: c,
+                provisional: true,
+            }
+        );
+        assert_eq!(got.as_status().owner_did, owner);
+        // another device's store: not presented as ours
+        assert_eq!(stored(&id, &other), Ok(None));
+
+        // a v1 envelope, as the mesh stores it: no kind key, no provisional mark
+        let owner_key = DeviceKey::from_seed_for_tests("settings-adopt-owner", "o");
+        let pubkey = *owner_key.did().pubkey();
+        let fields = crate::adoption::AdoptionFields {
+            device_did: &device,
+            owner_did: &owner,
+            owner_genesis_pubkey: &pubkey,
+            hub_endpoint_id: &[0; 32],
+            hub_relay: "",
+            hub_host: "",
+            caps: crate::adoption::CapList::Slice(&[]),
+            roster_version: 1,
+            issued_at: 1_700_000_000,
+            expires_at: 0,
+        };
+        let mut env = vec![0u8; fields.canonical_len() + 64];
+        let n = fields.sign_into(&owner_key, &mut env).unwrap();
+        env.truncate(n);
+        let mut id = MemoryKv::new();
+        id.put(KV_ADOPTION, &env).unwrap();
+        let got = stored(&id, &device).unwrap().unwrap();
+        assert_eq!(got.kind, crate::status::KIND_ADOPTION_V1);
+        assert_eq!(got.owner_did, owner);
+        assert!(!got.provisional);
+        assert_eq!(got.bytes, env);
     }
 
     #[test]
